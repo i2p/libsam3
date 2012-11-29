@@ -123,6 +123,8 @@ typedef struct {
  * pass NULL as hostname for 'localhost' and 0 as port for 7656
  * pass NULL as privkey to create TRANSIENT session
  * 'params' can be NULL
+ * see http://www.i2p2.i2p/i2cp.html#options for common options,
+ * and http://www.i2p2.i2p/streaming.html#options for STREAM options
  * if result<0: error, 'ses' fields are undefined, no need to call samCloseSession()
  * if result==0: ok, all 'ses' fields are filled
  * TODO: don't clear 'error' field on error (and set it to something meaningful)
