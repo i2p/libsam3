@@ -602,11 +602,12 @@ int samCloseSession (Sam3Session *ses) {
 }
 
 
-int samCreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type) {
+int samCreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type, const char *params) {
   if (ses != NULL) {
     static const char *typenames[3] = {"RAW", "DATAGRAM", "STREAM"};
     SAMFieldList *rep;
     const char *v = NULL;
+    const char *pdel = (params != NULL ? " " : "");
     //
     memset(ses, 0, sizeof(Sam3Session));
     if (privkey != NULL && strlen(privkey) != SAM3_PRIVKEY_SIZE) goto error;
@@ -621,7 +622,8 @@ int samCreateSession (Sam3Session *ses, const char *hostname, int port, const ch
     if ((ses->fd = samHandshake(hostname, port)) < 0) goto error;
     //
     if (libsam3_debug) fprintf(stderr, "samCreateSession: creating session (%s)...\n", typenames[(int)type]);
-    if (sam3tcpPrintf(ses->fd, "SESSION CREATE STYLE=%s ID=%s DESTINATION=%s\n", typenames[(int)type], ses->channel, privkey) < 0) goto error;
+    if (sam3tcpPrintf(ses->fd, "SESSION CREATE STYLE=%s ID=%s DESTINATION=%s%s%s\n", typenames[(int)type], ses->channel,
+                      privkey, pdel, (params != NULL ? params : NULL)) < 0) goto error;
     if ((rep = sam3ReadReply(ses->fd)) == NULL) goto error;
     if (!sam3IsGoodReply(rep, "SESSION", "STATUS", "RESULT", "OK") ||
         (v = sam3FindField(rep, "DESTINATION")) == NULL || strlen(v) != SAM3_PRIVKEY_SIZE) {

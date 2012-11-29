@@ -121,10 +121,12 @@ typedef struct {
  * create SAM session
  * pass NULL as hostname for 'localhost' and 0 as port for 7656
  * pass NULL as privkey to create TRANSIENT session
+ * 'params' can be NULL
  * if result<0: error, 'ses' fields are undefined
  * if result==0: ok, all 'ses' fields are filled
  */
-extern int samCreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type);
+extern int samCreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type,
+  const char *params);
 
 /* returns <0 on error, 0 on ok */
 /* 'ses' must be properly initialized */

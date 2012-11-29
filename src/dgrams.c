@@ -34,7 +34,7 @@ int main (int argc, char *argv[]) {
   strcpy(privkey, ses.privkey);
   //
   printf("creating session...\n");
-  if (samCreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, privkey, SAM3_SESSION_DGRAM) < 0) {
+  if (samCreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, privkey, SAM3_SESSION_DGRAM, NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
