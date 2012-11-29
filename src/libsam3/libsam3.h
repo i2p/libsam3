@@ -123,8 +123,9 @@ typedef struct {
  * pass NULL as hostname for 'localhost' and 0 as port for 7656
  * pass NULL as privkey to create TRANSIENT session
  * 'params' can be NULL
- * if result<0: error, 'ses' fields are undefined
+ * if result<0: error, 'ses' fields are undefined, no need to call samCloseSession()
  * if result==0: ok, all 'ses' fields are filled
+ * TODO: don't clear 'error' field on error (and set it to something meaningful)
  */
 extern int samCreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type,
   const char *params);

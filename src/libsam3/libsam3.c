@@ -556,19 +556,25 @@ int samHandshake (const char *hostname, int port) {
   sam3FreeFieldList(rep);
   return fd;
 error:
-  close(fd);
+  sam3tcpDisconnect(fd);
   if (rep != NULL) sam3FreeFieldList(rep);
   return -1;
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////
+static inline void strcpyerr (Sam3Session *ses, const char *errstr) {
+  memset(ses->error, 0, sizeof(ses->error));
+  if (errstr != NULL) strncpy(ses->error, errstr, sizeof(ses->error)-1);
+}
+
+
 int samGenerateKeys (Sam3Session *ses, const char *hostname, int port) {
   if (ses != NULL) {
     SAMFieldList *rep = NULL;
     int fd, res = -1;
     //
-    if ((fd = samHandshake(hostname, port)) < 0) return -1;
+    if ((fd = samHandshake(hostname, port)) < 0) { strcpyerr(ses, "I2P_ERROR"); return -1; }
     //
     if (sam3tcpPrintf(fd, "DEST GENERATE\n") >= 0) {
       if ((rep = sam3ReadReply(fd)) != NULL && sam3IsGoodReply(rep, "DEST", "REPLY", NULL, NULL)) {
@@ -596,9 +602,9 @@ int samNameLookup (Sam3Session *ses, const char *hostname, int port, const char 
     SAMFieldList *rep = NULL;
     int fd, res = -1;
     //
-    if ((fd = samHandshake(hostname, port)) < 0) { strcpy(ses->error, "IO_ERROR"); return -1; }
+    if ((fd = samHandshake(hostname, port)) < 0) { strcpyerr(ses, "I2P_ERROR"); return -1; }
     //
-    strcpy(ses->error, "I2P_ERROR");
+    strcpyerr(ses, "I2P_ERROR");
     if (sam3tcpPrintf(fd, "NAMING LOOKUP NAME=%s\n", name) >= 0) {
       if ((rep = sam3ReadReply(fd)) != NULL && sam3IsGoodReply(rep, "NAMING", "REPLY", "RESULT", NULL)) {
         const char *rs = sam3FindField(rep, "RESULT"), *pub = sam3FindField(rep, "VALUE");
@@ -606,11 +612,11 @@ int samNameLookup (Sam3Session *ses, const char *hostname, int port, const char 
         if (strcmp(rs, "OK") == 0) {
           if (pub != NULL && strlen(pub) == SAM3_PUBKEY_SIZE) {
             strcpy(ses->destkey, pub);
-            ses->error[0] = 0;
+            strcpyerr(ses, NULL);
             res = 0;
           }
         } else if (rs[0]) {
-          strcpy(ses->error, rs);
+          strcpyerr(ses, rs);
         }
       }
     }
@@ -709,24 +715,19 @@ int samStreamConnect (Sam3Session *ses, const char *destkey) {
     SAMFieldList *rep;
     int res = 0;
     //
-    if (ses->type != SAM3_SESSION_STREAM) { strcpy(ses->error, "INVALID_SESSION_TYPE"); return -1; }
-    if (ses->fd < 0 || ses->fdd < 0) { strcpy(ses->error, "INVALID_SESSION"); return -1; }
-    if (destkey == NULL || strlen(destkey) != SAM3_PUBKEY_SIZE) { strcpy(ses->error, "INVALID_KEY"); return -1; }
+    if (ses->type != SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return -1; }
+    if (ses->fd < 0 || ses->fdd < 0) { strcpyerr(ses, "INVALID_SESSION"); return -1; }
+    if (destkey == NULL || strlen(destkey) != SAM3_PUBKEY_SIZE) { strcpyerr(ses, "INVALID_KEY"); return -1; }
     if (sam3tcpPrintf(ses->fd, "STREAM CONNECT ID=%s DESTINATION=%s\n", ses->channel, destkey) < 0) return -1;
-    if ((rep = sam3ReadReply(ses->fd)) == NULL) { strcpy(ses->error, "IO_ERROR"); return -1; }
+    if ((rep = sam3ReadReply(ses->fd)) == NULL) { strcpyerr(ses, "IO_ERROR"); return -1; }
     if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
       const char *v = sam3FindField(rep, "RESULT");
       //
-      if (v != NULL) {
-        ses->error[sizeof(ses->error)-1] = 0;
-        strncpy(ses->error, v, sizeof(ses->error)-1);
-      } else {
-        strcpy(ses->error, "I2P_ERROR");
-      }
+      strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR"));
       res = -1;
     } else {
       // no error
-      ses->error[0] = 0;
+      strcpyerr(ses, NULL);
     }
     sam3FreeFieldList(rep);
     if (res == 0) strcpy(ses->destkey, destkey);
@@ -741,37 +742,28 @@ int samStreamAccept (Sam3Session *ses) {
     SAMFieldList *rep;
     char repstr[1024];
     //
-    if (ses->type != SAM3_SESSION_STREAM) { strcpy(ses->error, "INVALID_SESSION_TYPE"); return -1; }
-    if (ses->fd < 0 || ses->fdd < 0) { strcpy(ses->error, "INVALID_SESSION"); return -1; }
+    if (ses->type != SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return -1; }
+    if (ses->fd < 0 || ses->fdd < 0) { strcpyerr(ses, "INVALID_SESSION"); return -1; }
     if (sam3tcpPrintf(ses->fd, "STREAM ACCEPT ID=%s\n", ses->channel) < 0) return -1;
     if ((rep = sam3ReadReply(ses->fd)) == NULL) return -1;
     if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
       const char *v = sam3FindField(rep, "RESULT");
       //
-      if (v != NULL) {
-        ses->error[sizeof(ses->error)-1] = 0;
-        strncpy(ses->error, v, sizeof(ses->error)-1);
-      } else {
-        strcpy(ses->error, "I2P_ERROR");
-      }
+      strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR"));
       sam3FreeFieldList(rep);
       return -1;
     }
-    if (sam3tcpReceiveStr(ses->fd, repstr, sizeof(repstr)) < 0) { strcpy(ses->error, "IO_ERROR"); return -1; }
+    if (sam3tcpReceiveStr(ses->fd, repstr, sizeof(repstr)) < 0) { strcpyerr(ses, "IO_ERROR"); return -1; }
     if ((rep = sam3ParseReply(repstr)) != NULL) {
       const char *v = sam3FindField(rep, "RESULT");
       //
-      if (v != NULL) {
-        ses->error[sizeof(ses->error)-1] = 0;
-        strncpy(ses->error, v, sizeof(ses->error)-1);
-      } else {
-        strcpy(ses->error, "I2P_ERROR");
-      }
+      strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR"));
       sam3FreeFieldList(rep);
       return -1;
     }
-    if (strlen(repstr) != SAM3_PUBKEY_SIZE) { strcpy(ses->error, "INVALID_KEY"); return -1; }
+    if (strlen(repstr) != SAM3_PUBKEY_SIZE) { strcpyerr(ses, "INVALID_KEY"); return -1; }
     strcpy(ses->destkey, repstr);
+    strcpyerr(ses, NULL);
     return 0;
   }
   return -1;
@@ -783,16 +775,17 @@ int sam3DatagramSend (Sam3Session *ses, const char *hostname, int port, const ch
     char *dbuf;
     int res, dbufsz;
     //
-    if (ses->type == SAM3_SESSION_STREAM) { strcpy(ses->error, "INVALID_SESSION_TYPE"); return -1; }
-    if (ses->fd < 0) { strcpy(ses->error, "INVALID_SESSION"); return -1; }
-    if (destkey == NULL || strlen(destkey) != SAM3_PUBKEY_SIZE) { strcpy(ses->error, "INVALID_KEY"); return -1; }
-    if (buf == NULL || bufsize < 1 || bufsize > 31744) { strcpy(ses->error, "INVALID_DATA"); return -1; }
+    if (ses->type == SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return -1; }
+    if (ses->fd < 0) { strcpyerr(ses, "INVALID_SESSION"); return -1; }
+    if (destkey == NULL || strlen(destkey) != SAM3_PUBKEY_SIZE) { strcpyerr(ses, "INVALID_KEY"); return -1; }
+    if (buf == NULL || bufsize < 1 || bufsize > 31744) { strcpyerr(ses, "INVALID_DATA"); return -1; }
     dbufsz = bufsize+4+517+strlen(ses->channel)+1;
-    if ((dbuf = malloc(dbufsz)) == NULL) { strcpy(ses->error, "OUT_OF_MEMORY"); return -1; }
+    if ((dbuf = malloc(dbufsz)) == NULL) { strcpyerr(ses, "OUT_OF_MEMORY"); return -1; }
     sprintf(dbuf, "3.0 %s %s\n", ses->channel, destkey);
     memcpy(dbuf+strlen(dbuf), buf, bufsize);
     res = sam3udpSendTo(hostname, port, dbuf, dbufsz);
     free(dbuf);
+    strcpyerr(ses, (res < 0 ? "IO_ERROR" : NULL));
     return (res < 0 ? -1 : 0);
   }
   return -1;
@@ -805,12 +798,12 @@ int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize) {
     const char *v;
     int size = 0;
     //
-    if (ses->type == SAM3_SESSION_STREAM) { strcpy(ses->error, "INVALID_SESSION_TYPE"); return -1; }
-    if (ses->fd < 0) { strcpy(ses->error, "INVALID_SESSION"); return -1; }
-    if (buf == NULL || bufsize < 1) { strcpy(ses->error, "INVALID_BUFFER"); return -1; }
-    if ((rep = sam3ReadReply(ses->fd)) == NULL) { strcpy(ses->error, "IO_ERROR"); return -1; }
+    if (ses->type == SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return -1; }
+    if (ses->fd < 0) { strcpyerr(ses, "INVALID_SESSION"); return -1; }
+    if (buf == NULL || bufsize < 1) { strcpyerr(ses, "INVALID_BUFFER"); return -1; }
+    if ((rep = sam3ReadReply(ses->fd)) == NULL) { strcpyerr(ses, "IO_ERROR"); return -1; }
     if (!sam3IsGoodReply(rep, "DATAGRAM", "RECEIVED", "SIZE", NULL)) {
-      strcpy(ses->error, "I2P_ERROR");
+      strcpyerr(ses, "I2P_ERROR");
       sam3FreeFieldList(rep);
       return -1;
     }
@@ -818,14 +811,14 @@ int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize) {
     if ((v = sam3FindField(rep, "DESTINATION")) != NULL && strlen(v) == SAM3_PUBKEY_SIZE) strcpy(ses->destkey, v);
     v = sam3FindField(rep, "SIZE"); // we have this field -- for sure
     if (!v[0] || !isdigit(*v)) {
-      strcpy(ses->error, "I2P_ERROR_SIZE");
+      strcpyerr(ses, "I2P_ERROR_SIZE");
       sam3FreeFieldList(rep);
       return -1;
     }
     //
     while (*v && isdigit(*v)) {
       if ((size = size*10+v[0]-'0') > bufsize) {
-        strcpy(ses->error, "I2P_ERROR_BUFFER_TOO_SMALL");
+        strcpyerr(ses, "I2P_ERROR_BUFFER_TOO_SMALL");
         sam3FreeFieldList(rep);
         return -1;
       }
@@ -833,13 +826,14 @@ int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize) {
     }
     //
     if (*v) {
-      strcpy(ses->error, "I2P_ERROR_SIZE");
+      strcpyerr(ses, "I2P_ERROR_SIZE");
       sam3FreeFieldList(rep);
       return -1;
     }
     sam3FreeFieldList(rep);
     //
-    if (sam3tcpReceive(ses->fd, buf, size) != size) { strcpy(ses->error, "IO_ERROR"); return -1; }
+    if (sam3tcpReceive(ses->fd, buf, size) != size) { strcpyerr(ses, "IO_ERROR"); return -1; }
+    strcpyerr(ses, NULL);
     return size;
   }
   return -1;
