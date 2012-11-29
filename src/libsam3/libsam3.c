@@ -499,20 +499,20 @@ static inline uint32_t hashint (uint32_t a) {
 static uint32_t genSeed (void) {
   uint32_t res;
 #ifndef WIN32
-  pid_t pid = getpid();
   struct sysinfo sy;
+  pid_t pid = getpid();
+  //
   sysinfo(&sy);
   res =
     hashint((uint32_t)pid)^
     hashint((uint32_t)time(NULL))^
-    hashint((uintptr_t)(&genSeed))^
     hashint((uint32_t)sy.sharedram)^
     hashint((uint32_t)sy.bufferram)^
     hashint((uint32_t)sy.uptime);
 #else
   res =
-    hashint((uint32_t)GetTickCount())^
-    hashint((uintptr_t)(&genSeed));
+    hashint((uint32_t)GetCurrentProcessId())^
+    hashint((uint32_t)GetTickCount());
 #endif
   return hashint(res);
 }
