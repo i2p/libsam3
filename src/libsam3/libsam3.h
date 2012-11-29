@@ -166,7 +166,6 @@ extern int samStreamAccept (Sam3Session *ses);
  */
 extern int samGenerateKeys (Sam3Session *ses, const char *hostname, int port);
 
-
 /*
  * do name lookup (something like gethostbyname())
  * fills 'destkey' only
