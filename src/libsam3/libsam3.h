@@ -153,6 +153,7 @@ extern int samStreamConnect (Sam3Session *ses, const char *destkey);
 extern int samStreamAccept (Sam3Session *ses);
 
 
+////////////////////////////////////////////////////////////////////////////////
 /*
  * generate new keypair
  * fills 'privkey' and 'pubkey' only
@@ -161,6 +162,16 @@ extern int samStreamAccept (Sam3Session *ses);
  * returns <0 on error, 0 on ok
  */
 extern int samGenerateKeys (Sam3Session *ses, const char *hostname, int port);
+
+
+/*
+ * do name lookup (something like gethostbyname())
+ * fills 'destkey' only
+ * you should not call samCloseSession() on 'ses'
+ * will set 'error' field
+ * returns <0 on error, 0 on ok
+ */
+extern int samNameLookup (Sam3Session *ses, const char *hostname, int port, const char *name);
 
 
 ////////////////////////////////////////////////////////////////////////////////

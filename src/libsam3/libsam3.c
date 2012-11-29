@@ -591,6 +591,40 @@ int samGenerateKeys (Sam3Session *ses, const char *hostname, int port) {
 }
 
 
+int samNameLookup (Sam3Session *ses, const char *hostname, int port, const char *name) {
+  if (ses != NULL && name != NULL && name[0]) {
+    SAMFieldList *rep = NULL;
+    int fd, res = -1;
+    //
+    if ((fd = samHandshake(hostname, port)) < 0) { strcpy(ses->error, "IO_ERROR"); return -1; }
+    //
+    strcpy(ses->error, "I2P_ERROR");
+    if (sam3tcpPrintf(fd, "NAMING LOOKUP NAME=%s\n", name) >= 0) {
+      if ((rep = sam3ReadReply(fd)) != NULL && sam3IsGoodReply(rep, "NAMING", "REPLY", "RESULT", NULL)) {
+        const char *rs = sam3FindField(rep, "RESULT"), *pub = sam3FindField(rep, "VALUE");
+        //
+        if (strcmp(rs, "OK") == 0) {
+          if (pub != NULL && strlen(pub) == SAM3_PUBKEY_SIZE) {
+            strcpy(ses->destkey, pub);
+            ses->error[0] = 0;
+            res = 0;
+          }
+        } else if (rs[0]) {
+          strcpy(ses->error, rs);
+        }
+      }
+    }
+    //
+    sam3FreeFieldList(rep);
+    sam3tcpDisconnect(fd);
+    //
+    return res;
+  }
+  return -1;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 int samCloseSession (Sam3Session *ses) {
   if (ses != NULL) {
     if (ses->fd >= 0) sam3tcpDisconnect(ses->fd);
