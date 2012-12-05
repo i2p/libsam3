@@ -11,7 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "libsam3/libsam3.h"
+#include "../libsam3/libsam3.h"
 
 
 static void testb32 (const char *src, const char *res) {

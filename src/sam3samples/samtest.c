@@ -12,7 +12,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "libsam3/libsam3.h"
+#include "../libsam3/libsam3.h"
 
 
 int main (int argc, char *argv[]) {

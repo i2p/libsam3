@@ -12,7 +12,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "libsam3/libsam3.h"
+#include "../libsam3/libsam3.h"
 
 
 // comment the following if you don't want to stress UDP with 'big' datagram

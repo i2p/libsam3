@@ -103,6 +103,7 @@ extern int sam3Handshake (const char *hostname, int port, uint32_t *ip);
 extern int sam3HandshakeIP (uint32_t ip, int port);
 
 
+////////////////////////////////////////////////////////////////////////////////
 typedef enum {
   SAM3_SESSION_RAW,
   SAM3_SESSION_DGRAM,
@@ -110,7 +111,7 @@ typedef enum {
 } SamSessionType;
 
 
-typedef struct {
+typedef struct Sam3Session {
   SamSessionType type;
   int fd;
   char privkey[SAM3_PRIVKEY_SIZE+1]; // (asciiz)
@@ -133,6 +134,7 @@ typedef struct Sam3Connection {
 } Sam3Connection;
 
 
+////////////////////////////////////////////////////////////////////////////////
 /*
  * create SAM session
  * pass NULL as hostname for 'localhost' and 0 as port for 7656
