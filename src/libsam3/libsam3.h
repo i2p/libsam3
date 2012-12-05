@@ -201,6 +201,15 @@ extern int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize);
 extern int sam3GenChannelName (char *dest, int minlen, int maxlen);
 
 
+////////////////////////////////////////////////////////////////////////////////
+// NOT including '\0' terminator
+static inline int sam3Base32EncodedLength (int size) { return (((size+5-1)/5)*8); }
+
+// output 8 bytes for every 5 input
+// return size or <0 on error
+extern int sam3Base32Encode (char *dest, const void *srcbuf, int srcsize);
+
+
 #ifdef __cplusplus
 }
 #endif

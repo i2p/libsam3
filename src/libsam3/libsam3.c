@@ -838,3 +838,58 @@ int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize) {
   }
   return -1;
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+// output 8 bytes for every 5 input
+// return size or <0 on error
+int sam3Base32Encode (char *dest, const void *srcbuf, int srcsize) {
+  if (dest != NULL && srcbuf != NULL && srcsize >= 0) {
+    static const char *const b32chars = "abcdefghijklmnopqrstuvwxyz234567=";
+    const unsigned char *src = (const unsigned char *)srcbuf;
+    int destsize = 0;
+    //
+    while (srcsize > 0) {
+      int blksize = (srcsize < 5 ? srcsize : 5);
+      unsigned char n[8];
+      //
+      memset(n, 0, sizeof(n));
+      switch (blksize) {
+        case 5:
+          n[7] = (src[4]&0x1f);
+          n[6] = ((src[4]&0xe0)>>5);
+        case 4:
+          n[6] |= ((src[3]&0x03)<<3);
+          n[5] = ((src[3]&0x7c)>>2);
+          n[4] = ((src[3]&0x80)>>7);
+        case 3:
+          n[4] |= ((src[2]&0x0f)<<1);
+          n[3] = ((src[2]&0xf0)>>4);
+        case 2:
+          n[3] |= ((src[1]&0x01)<<4);
+          n[2] = ((src[1]&0x3e)>>1);
+          n[1] = ((src[1]&0xc0)>>6);
+        case 1:
+          n[1] |= ((src[0]&0x07)<<2);
+          n[0] = ((src[0]&0xf8)>>3);
+          break;
+      }
+      src += blksize;
+      srcsize -= blksize;
+      // pad
+      switch (blksize) {
+        case 1: n[2] = n[3] = 32;
+        case 2: n[4] = 32;
+        case 3: n[5] = n[6] = 32;
+        case 4: n[7] = 32;
+        case 5: break;
+      }
+      // output
+      for (int f = 0; f < 8; ++f) *dest++ = b32chars[n[f]];
+      destsize += 8;
+    }
+    *dest++ = 0; // make valid asciiz string
+    return destsize;
+  }
+  return -1;
+}
