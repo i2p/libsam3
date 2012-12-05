@@ -691,7 +691,7 @@ int sam3CloseConnection (Sam3Connection *conn) {
     int res = sam3CloseConnectionInternal(conn);
     //
     if (conn->ses != NULL) {
-      for (Sam3Connection *p = NULL, *c = conn->ses->connlist; c != NULL; c = c->next) {
+      for (Sam3Connection *p = NULL, *c = conn->ses->connlist; c != NULL; p = c, c = c->next) {
         if (c == conn) {
           if (p == NULL) conn->ses->connlist = c->next; else p->next = c->next;
           break;
