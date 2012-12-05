@@ -9,6 +9,8 @@
 #ifndef LIBSAM3_H
 #define LIBSAM3_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,7 +32,9 @@ extern int libsam3_debug;
 
 ////////////////////////////////////////////////////////////////////////////////
 /* returns fd or -1 */
-extern int sam3tcpConnect (const char *hostname, int port);
+/* 'ip': host IP; can be NULL */
+extern int sam3tcpConnect (const char *hostname, int port, uint32_t *ip);
+extern int sam3tcpConnectIP (uint32_t ip, int port);
 
 /* <0: error; 0: ok */
 extern int sam3tcpDisconnect (int fd);
@@ -56,7 +60,9 @@ extern int sam3tcpPrintf (int fd, const char *fmt, ...) __attribute__((format(pr
 extern int sam3tcpReceiveStr (int fd, char *dest, int maxSize);
 
 /* pass NULL for 'localhost' and 0 for 7655 */
-extern int sam3udpSendTo (const char *hostname, int port, const void *buf, int bufSize);
+/* 'ip': host IP; can be NULL */
+extern int sam3udpSendTo (const char *hostname, int port, const void *buf, int bufSize, uint32_t *ip);
+extern int sam3udpSendToIP (uint32_t ip, int port, const void *buf, int bufSize);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +99,8 @@ extern const char *sam3FindField (const SAMFieldList *list, const char *field);
 ////////////////////////////////////////////////////////////////////////////////
 /* pass NULL for 'localhost' and 0 for 7656 */
 /* returns <0 on error or socket fd on success */
-extern int samHandshake (const char *hostname, int port);
+extern int sam3Handshake (const char *hostname, int port, uint32_t *ip);
+extern int sam3HandshakeIP (uint32_t ip, int port);
 
 
 typedef enum {
@@ -103,19 +110,27 @@ typedef enum {
 } SamSessionType;
 
 
-// note that for SAM3_SESSION_STREAM, fd is the 'secondary' socket used for accepting connections and data i/o
-// and the 'primary' one is moved to fdd
-// but for other session types, only fd is used and fdd is -1
 typedef struct {
   SamSessionType type;
   int fd;
-  int fdd;
-  char privkey[900];
-  char pubkey[520];
-  char channel[66];
-  char destkey[520]; // for STREAM sessions
-  char error[32];
+  char privkey[SAM3_PRIVKEY_SIZE+1]; // (asciiz)
+  char pubkey[SAM3_PUBKEY_SIZE+1]; // (asciiz)
+  char channel[66]; // (asciiz)
+  char destkey[SAM3_PUBKEY_SIZE+1]; // for DGRAM sessions (asciiz)
+  char error[32]; // (asciiz)
+  uint32_t ip;
+  int port; // this will be changed to UDP port for DRAM/RAW (can be 0)
+  struct Sam3Connection *connlist; // list of opened connections
 } Sam3Session;
+
+
+typedef struct Sam3Connection {
+  Sam3Session *ses;
+  struct Sam3Connection *next;
+  int fd;
+  char destkey[SAM3_PUBKEY_SIZE+1]; // (asciiz)
+  char error[32]; // (asciiz)
+} Sam3Connection;
 
 
 /*
@@ -125,55 +140,66 @@ typedef struct {
  * 'params' can be NULL
  * see http://www.i2p2.i2p/i2cp.html#options for common options,
  * and http://www.i2p2.i2p/streaming.html#options for STREAM options
- * if result<0: error, 'ses' fields are undefined, no need to call samCloseSession()
+ * if result<0: error, 'ses' fields are undefined, no need to call sam3CloseSession()
  * if result==0: ok, all 'ses' fields are filled
  * TODO: don't clear 'error' field on error (and set it to something meaningful)
  */
-extern int samCreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type,
+extern int sam3CreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type,
   const char *params);
 
-/* returns <0 on error, 0 on ok */
-/* 'ses' must be properly initialized */
-extern int samCloseSession (Sam3Session *ses);
+/*
+ * close SAM session (and all it's connections)
+ * returns <0 on error, 0 on ok
+ * 'ses' must be properly initialized
+ */
+extern int sam3CloseSession (Sam3Session *ses);
 
 /*
  * open stream connection to 'destkey' endpoint
- * 'destkey' is 516-byte public key
- * returns <0 on error, 0 on ok
- * you still have to call samCloseSession() on failure
+ * 'destkey' is 516-byte public key (asciiz)
+ * returns <0 on error, fd on ok
+ * you still have to call sam3CloseSession() on failure
  * sets ses->error on error
  */
-extern int samStreamConnect (Sam3Session *ses, const char *destkey);
+extern Sam3Connection *sam3StreamConnect (Sam3Session *ses, const char *destkey);
 
 /*
  * accepts stream connection and sets 'destkey'
  * 'destkey' is 516-byte public key
- * returns <0 on error, 0 on ok
- * you still have to call samCloseSession() on failure
+ * returns <0 on error, fd on ok
+ * you still have to call sam3CloseSession() on failure
  * sets ses->error on error
  * note that there is no timeouts for now, but you can use sam3tcpSetTimeout*()
  */
-extern int samStreamAccept (Sam3Session *ses);
+extern Sam3Connection *sam3StreamAccept (Sam3Session *ses);
+
+/*
+ * close SAM connection
+ * returns <0 on error, 0 on ok
+ * 'conn' must be properly initialized
+ * 'conn' is invalid after call
+ */
+extern int sam3CloseConnection (Sam3Connection *conn);
 
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
  * generate new keypair
  * fills 'privkey' and 'pubkey' only
- * you should not call samCloseSession() on 'ses'
+ * you should not call sam3CloseSession() on 'ses'
  * will not set 'error' field
  * returns <0 on error, 0 on ok
  */
-extern int samGenerateKeys (Sam3Session *ses, const char *hostname, int port);
+extern int sam3GenerateKeys (Sam3Session *ses, const char *hostname, int port);
 
 /*
  * do name lookup (something like gethostbyname())
  * fills 'destkey' only
- * you should not call samCloseSession() on 'ses'
+ * you should not call sam3CloseSession() on 'ses'
  * will set 'error' field
  * returns <0 on error, 0 on ok
  */
-extern int samNameLookup (Sam3Session *ses, const char *hostname, int port, const char *name);
+extern int sam3NameLookup (Sam3Session *ses, const char *hostname, int port, const char *name);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,16 +207,16 @@ extern int samNameLookup (Sam3Session *ses, const char *hostname, int port, cons
  * sends datagram to 'destkey' endpoint
  * 'destkey' is 516-byte public key
  * returns <0 on error, 0 on ok
- * you still have to call samCloseSession() on failure
+ * you still have to call sam3CloseSession() on failure
  * sets ses->error on error
  * don't send datagrams bigger than 31KB!
  */
-extern int sam3DatagramSend (Sam3Session *ses, const char *hostname, int port, const char *destkey, const void *buf, int bufsize);
+extern int sam3DatagramSend (Sam3Session *ses, const char *destkey, const void *buf, int bufsize);
 
 /*
  * receives datagram and sets 'destkey' to source pubkey (if not RAW)
  * returns <0 on error (buffer too small is error too) or number of bytes written to 'buf'
- * you still have to call samCloseSession() on failure
+ * you still have to call sam3CloseSession() on failure
  * sets ses->error on error
  * will necer receive datagrams bigger than 31KB (32KB for RAW)
  */

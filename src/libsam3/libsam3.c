@@ -68,19 +68,12 @@ int sam3tcpSetTimeoutReceive (int fd, int timeoutms) {
 }
 
 
-/* returns fd or -1 */
-int sam3tcpConnect (const char *hostname, int port) {
-  struct hostent *host = NULL;
+int sam3tcpConnectIP (uint32_t ip, int port) {
   struct sockaddr_in addr;
   int fd, val = 1;
+  char ipstr[18];
   //
-  if (hostname == NULL || !hostname[0] || port < 1 || port > 65535) return -1;
-  //
-  host = gethostbyname(hostname);
-  if (host == NULL || host->h_name == NULL || !host->h_name[0]) {
-    if (libsam3_debug) fprintf(stderr, "ERROR: can't resolve '%s'\n", hostname);
-    return -1;
-  }
+  if (ip == 0 || ip == 0xffffffffUL || port < 1 || port > 65535) return -1;
   //
   if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
     if (libsam3_debug) fprintf(stderr, "ERROR: can't create socket\n");
@@ -90,9 +83,14 @@ int sam3tcpConnect (const char *hostname, int port) {
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
-  addr.sin_addr = *((struct in_addr *)host->h_addr);
+  addr.sin_addr.s_addr = ip;
   //
-  if (libsam3_debug) fprintf(stderr, "connecting to %s [%s:%d]...\n", hostname, inet_ntoa(addr.sin_addr), port);
+  ipstr[0] = 0;
+  if (libsam3_debug) {
+    if (getnameinfo((struct sockaddr *)&addr, sizeof(struct sockaddr_in), ipstr, sizeof(ipstr), NULL, 0, NI_NUMERICHOST) == 0) {
+      fprintf(stderr, "connecting to [%s:%d]...\n", ipstr, port);
+    }
+  }
   //
   setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val));
   //
@@ -102,9 +100,40 @@ int sam3tcpConnect (const char *hostname, int port) {
     return -1;
   }
   //
-  if (libsam3_debug) fprintf(stderr, "connected to %s [%s:%d]\n", hostname, inet_ntoa(addr.sin_addr), port);
+  if (libsam3_debug && ipstr[0]) fprintf(stderr, "connected to [%s:%d]\n", ipstr, port);
   //
   return fd;
+}
+
+
+/* returns fd or -1 */
+int sam3tcpConnect (const char *hostname, int port, uint32_t *ip) {
+  struct hostent *host = NULL;
+  //
+  if (hostname == NULL || !hostname[0] || port < 1 || port > 65535) return -1;
+  //
+  host = gethostbyname(hostname);
+  if (host == NULL || host->h_name == NULL || !host->h_name[0]) {
+    if (libsam3_debug) fprintf(stderr, "ERROR: can't resolve '%s'\n", hostname);
+    return -1;
+  }
+  //
+  if (libsam3_debug) {
+    char ipstr[18];
+    //
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    addr.sin_addr = *((struct in_addr *)host->h_addr);
+    //
+    if (getnameinfo((struct sockaddr *)&addr, sizeof(struct sockaddr_in), ipstr, sizeof(ipstr), NULL, 0, NI_NUMERICHOST) == 0) {
+      fprintf(stderr, "resolving: %s is [%s]...\n", hostname, ipstr);
+    }
+  }
+  //
+  if (ip != NULL) *ip = ((struct in_addr *)host->h_addr)->s_addr;
+  return sam3tcpConnectIP(((struct in_addr *)host->h_addr)->s_addr, port);
 }
 
 
@@ -112,8 +141,7 @@ int sam3tcpConnect (const char *hostname, int port) {
 int sam3tcpDisconnect (int fd) {
   if (fd >= 0) {
     shutdown(fd, SHUT_RDWR);
-    close(fd);
-    return 0;
+    return close(fd);
   }
   //
   return -1;
@@ -241,21 +269,12 @@ int sam3tcpReceiveStr (int fd, char *dest, int maxSize) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-int sam3udpSendTo (const char *hostname, int port, const void *buf, int bufSize) {
-  struct hostent *host = NULL;
+int sam3udpSendToIP (uint32_t ip, int port, const void *buf, int bufSize) {
   struct sockaddr_in addr;
   int fd, res;
   //
   if (buf == NULL || bufSize < 1) return -1;
-  //
-  if (hostname == NULL || !hostname[0]) hostname = "localhost";
   if (port < 1 || port > 65535) port = 7655;
-  //
-  host = gethostbyname(hostname);
-  if (host == NULL || host->h_name == NULL || !host->h_name[0]) {
-    if (libsam3_debug) fprintf(stderr, "ERROR: can't resolve '%s'\n", hostname);
-    return -1;
-  }
   //
   if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     if (libsam3_debug) fprintf(stderr, "ERROR: can't create socket\n");
@@ -265,7 +284,7 @@ int sam3udpSendTo (const char *hostname, int port, const void *buf, int bufSize)
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
   addr.sin_port = htons(port);
-  addr.sin_addr = *((struct in_addr *)host->h_addr);
+  addr.sin_addr.s_addr = ip;
   //
   res = sendto(fd, buf, bufSize, 0, (struct sockaddr *)&addr, sizeof(addr));
   //
@@ -282,6 +301,24 @@ int sam3udpSendTo (const char *hostname, int port, const void *buf, int bufSize)
   close(fd);
   //
   return (res >= 0 ? 0 : -1);
+}
+
+
+int sam3udpSendTo (const char *hostname, int port, const void *buf, int bufSize, uint32_t *ip) {
+  struct hostent *host = NULL;
+  //
+  if (buf == NULL || bufSize < 1) return -1;
+  if (hostname == NULL || !hostname[0]) hostname = "localhost";
+  if (port < 1 || port > 65535) port = 7655;
+  //
+  host = gethostbyname(hostname);
+  if (host == NULL || host->h_name == NULL || !host->h_name[0]) {
+    if (libsam3_debug) fprintf(stderr, "ERROR: can't resolve '%s'\n", hostname);
+    return -1;
+  }
+  //
+  if (ip != NULL) *ip = ((struct in_addr *)host->h_addr)->s_addr;
+  return sam3udpSendToIP(((struct in_addr *)host->h_addr)->s_addr, port, buf, bufSize);
 }
 
 
@@ -544,11 +581,8 @@ int sam3GenChannelName (char *dest, int minlen, int maxlen) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-int samHandshake (const char *hostname, int port) {
+static int sam3HandshakeInternal (int fd) {
   SAMFieldList *rep = NULL;
-  int fd;
-  //
-  if ((fd = sam3tcpConnect((hostname == NULL || !hostname[0] ? "localhost" : hostname), (port < 1 || port > 65535 ? 7656 : port))) < 0) return -1;
   //
   if (sam3tcpPrintf(fd, "HELLO VERSION MIN=3.0 MAX=3.0\n") < 0) goto error;
   rep = sam3ReadReply(fd);
@@ -562,6 +596,22 @@ error:
 }
 
 
+int sam3HandshakeIP (uint32_t ip, int port) {
+  int fd;
+  //
+  if ((fd = sam3tcpConnectIP(ip, (port < 1 || port > 65535 ? 7656 : port))) < 0) return -1;
+  return sam3HandshakeInternal(fd);
+}
+
+
+int sam3Handshake (const char *hostname, int port, uint32_t *ip) {
+  int fd;
+  //
+  if ((fd = sam3tcpConnect((hostname == NULL || !hostname[0] ? "localhost" : hostname), (port < 1 || port > 65535 ? 7656 : port), ip)) < 0) return -1;
+  return sam3HandshakeInternal(fd);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 static inline void strcpyerr (Sam3Session *ses, const char *errstr) {
   memset(ses->error, 0, sizeof(ses->error));
@@ -569,12 +619,12 @@ static inline void strcpyerr (Sam3Session *ses, const char *errstr) {
 }
 
 
-int samGenerateKeys (Sam3Session *ses, const char *hostname, int port) {
+int sam3GenerateKeys (Sam3Session *ses, const char *hostname, int port) {
   if (ses != NULL) {
     SAMFieldList *rep = NULL;
     int fd, res = -1;
     //
-    if ((fd = samHandshake(hostname, port)) < 0) { strcpyerr(ses, "I2P_ERROR"); return -1; }
+    if ((fd = sam3Handshake(hostname, port, NULL)) < 0) { strcpyerr(ses, "I2P_ERROR"); return -1; }
     //
     if (sam3tcpPrintf(fd, "DEST GENERATE\n") >= 0) {
       if ((rep = sam3ReadReply(fd)) != NULL && sam3IsGoodReply(rep, "DEST", "REPLY", NULL, NULL)) {
@@ -597,12 +647,12 @@ int samGenerateKeys (Sam3Session *ses, const char *hostname, int port) {
 }
 
 
-int samNameLookup (Sam3Session *ses, const char *hostname, int port, const char *name) {
+int sam3NameLookup (Sam3Session *ses, const char *hostname, int port, const char *name) {
   if (ses != NULL && name != NULL && name[0]) {
     SAMFieldList *rep = NULL;
     int fd, res = -1;
     //
-    if ((fd = samHandshake(hostname, port)) < 0) { strcpyerr(ses, "I2P_ERROR"); return -1; }
+    if ((fd = sam3Handshake(hostname, port, NULL)) < 0) { strcpyerr(ses, "I2P_ERROR"); return -1; }
     //
     strcpyerr(ses, "I2P_ERROR");
     if (sam3tcpPrintf(fd, "NAMING LOOKUP NAME=%s\n", name) >= 0) {
@@ -631,19 +681,48 @@ int samNameLookup (Sam3Session *ses, const char *hostname, int port, const char 
 
 
 ////////////////////////////////////////////////////////////////////////////////
-int samCloseSession (Sam3Session *ses) {
+static int sam3CloseConnectionInternal (Sam3Connection *conn) {
+  return (conn->fd >= 0 ? sam3tcpDisconnect(conn->fd) : 0);
+}
+
+
+int sam3CloseConnection (Sam3Connection *conn) {
+  if (conn != NULL) {
+    int res = sam3CloseConnectionInternal(conn);
+    //
+    if (conn->ses != NULL) {
+      for (Sam3Connection *p = NULL, *c = conn->ses->connlist; c != NULL; c = c->next) {
+        if (c == conn) {
+          if (p == NULL) conn->ses->connlist = c->next; else p->next = c->next;
+          break;
+        }
+      }
+    }
+    free(conn);
+    //
+    return res;
+  }
+  return -1;
+}
+
+
+int sam3CloseSession (Sam3Session *ses) {
   if (ses != NULL) {
+    for (Sam3Connection *n, *c = ses->connlist; c != NULL; c = n) {
+      n = c->next;
+      sam3CloseConnectionInternal(c);
+      free(c);
+    }
     if (ses->fd >= 0) sam3tcpDisconnect(ses->fd);
-    if (ses->fdd >= 0) sam3tcpDisconnect(ses->fdd);
     memset(ses, 0, sizeof(Sam3Session));
-    ses->fd = ses->fdd = -1;
+    ses->fd = -1;
     return 0;
   }
   return -1;
 }
 
 
-int samCreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type, const char *params) {
+int sam3CreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type, const char *params) {
   if (ses != NULL) {
     static const char *typenames[3] = {"RAW", "DATAGRAM", "STREAM"};
     SAMFieldList *rep;
@@ -651,24 +730,26 @@ int samCreateSession (Sam3Session *ses, const char *hostname, int port, const ch
     const char *pdel = (params != NULL ? " " : "");
     //
     memset(ses, 0, sizeof(Sam3Session));
+    ses->fd = -1;
+    //
     if (privkey != NULL && strlen(privkey) != SAM3_PRIVKEY_SIZE) goto error;
     if ((int)type < 0 || (int)type > 2) goto error;
     if (privkey == NULL) privkey = "TRANSIENT";
     //
-    ses->fd = ses->fdd = -1;
     ses->type = type;
+    ses->port = (type == SAM3_SESSION_STREAM ? (port ? port : 7656) : 7655);
     sam3GenChannelName(ses->channel, 32, 64);
-    if (libsam3_debug) fprintf(stderr, "samCreateSession: channel=[%s]\n", ses->channel);
+    if (libsam3_debug) fprintf(stderr, "sam3CreateSession: channel=[%s]\n", ses->channel);
     //
-    if ((ses->fd = samHandshake(hostname, port)) < 0) goto error;
+    if ((ses->fd = sam3Handshake(hostname, port, &ses->ip)) < 0) goto error;
     //
-    if (libsam3_debug) fprintf(stderr, "samCreateSession: creating session (%s)...\n", typenames[(int)type]);
+    if (libsam3_debug) fprintf(stderr, "sam3CreateSession: creating session (%s)...\n", typenames[(int)type]);
     if (sam3tcpPrintf(ses->fd, "SESSION CREATE STYLE=%s ID=%s DESTINATION=%s%s%s\n", typenames[(int)type], ses->channel,
-                      privkey, pdel, (params != NULL ? params : NULL)) < 0) goto error;
+                      privkey, pdel, (params != NULL ? params : "")) < 0) goto error;
     if ((rep = sam3ReadReply(ses->fd)) == NULL) goto error;
     if (!sam3IsGoodReply(rep, "SESSION", "STATUS", "RESULT", "OK") ||
         (v = sam3FindField(rep, "DESTINATION")) == NULL || strlen(v) != SAM3_PRIVKEY_SIZE) {
-      if (libsam3_debug) fprintf(stderr, "samCreateSession: invalid reply (%d)...\n", (v != NULL ? strlen(v) : -1));
+      if (libsam3_debug) fprintf(stderr, "sam3CreateSession: invalid reply (%d)...\n", (v != NULL ? strlen(v) : -1));
       if (libsam3_debug) sam3DumpFieldList(rep);
       sam3FreeFieldList(rep);
       goto error;
@@ -682,7 +763,7 @@ int samCreateSession (Sam3Session *ses, const char *hostname, int port, const ch
     v = NULL;
     if (!sam3IsGoodReply(rep, "NAMING", "REPLY", "RESULT", "OK") ||
         (v = sam3FindField(rep, "VALUE")) == NULL || strlen(v) != SAM3_PUBKEY_SIZE) {
-      if (libsam3_debug) fprintf(stderr, "samCreateSession: invalid NAMING reply (%d)...\n", (v != NULL ? strlen(v) : -1));
+      if (libsam3_debug) fprintf(stderr, "sam3CreateSession: invalid NAMING reply (%d)...\n", (v != NULL ? strlen(v) : -1));
       if (libsam3_debug) sam3DumpFieldList(rep);
       sam3FreeFieldList(rep);
       goto error;
@@ -690,87 +771,100 @@ int samCreateSession (Sam3Session *ses, const char *hostname, int port, const ch
     strcpy(ses->pubkey, v);
     sam3FreeFieldList(rep);
     //
-    if (type == SAM3_SESSION_STREAM) {
-      // open second stream for data i/o
-      int tfd;
-      //
-      if (libsam3_debug) fprintf(stderr, "samCreateSession: creating data channel...\n");
-      if ((ses->fdd = samHandshake(hostname, port)) < 0) goto error;
-      tfd = ses->fdd;
-      ses->fdd = ses->fd;
-      ses->fd = tfd;
-    }
-    //
-    if (libsam3_debug) fprintf(stderr, "samCreateSession: complete.\n");
+    if (libsam3_debug) fprintf(stderr, "sam3CreateSession: complete.\n");
     return 0;
   }
 error:
-  samCloseSession(ses);
+  sam3CloseSession(ses);
   return -1;
 }
 
 
-int samStreamConnect (Sam3Session *ses, const char *destkey) {
+Sam3Connection *sam3StreamConnect (Sam3Session *ses, const char *destkey) {
   if (ses != NULL) {
     SAMFieldList *rep;
-    int res = 0;
+    Sam3Connection *conn;
     //
-    if (ses->type != SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return -1; }
-    if (ses->fd < 0 || ses->fdd < 0) { strcpyerr(ses, "INVALID_SESSION"); return -1; }
-    if (destkey == NULL || strlen(destkey) != SAM3_PUBKEY_SIZE) { strcpyerr(ses, "INVALID_KEY"); return -1; }
-    if (sam3tcpPrintf(ses->fd, "STREAM CONNECT ID=%s DESTINATION=%s\n", ses->channel, destkey) < 0) return -1;
-    if ((rep = sam3ReadReply(ses->fd)) == NULL) { strcpyerr(ses, "IO_ERROR"); return -1; }
+    if (ses->type != SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return NULL; }
+    if (ses->fd < 0) { strcpyerr(ses, "INVALID_SESSION"); return NULL; }
+    if (destkey == NULL || strlen(destkey) != SAM3_PUBKEY_SIZE) { strcpyerr(ses, "INVALID_KEY"); return NULL; }
+    if ((conn = calloc(1, sizeof(Sam3Connection))) == NULL) { strcpyerr(ses, "NO_MEMORY"); return NULL; }
+    if ((conn->fd = sam3HandshakeIP(ses->ip, ses->port)) < 0) { strcpyerr(ses, "IO_ERROR_SK"); goto error; }
+    if (sam3tcpPrintf(conn->fd, "STREAM CONNECT ID=%s DESTINATION=%s\n", ses->channel, destkey) < 0) { strcpyerr(ses, "IO_ERROR"); goto error; }
+    if ((rep = sam3ReadReply(conn->fd)) == NULL) { strcpyerr(ses, "IO_ERROR"); goto error; }
     if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
       const char *v = sam3FindField(rep, "RESULT");
       //
       strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR"));
-      res = -1;
+      sam3CloseConnectionInternal(conn);
+      free(conn);
+      conn = NULL;
     } else {
       // no error
       strcpyerr(ses, NULL);
     }
     sam3FreeFieldList(rep);
-    if (res == 0) strcpy(ses->destkey, destkey);
-    return res;
+    if (conn != NULL) {
+      strcpy(conn->destkey, destkey);
+      conn->ses = ses;
+      conn->next = ses->connlist;
+      ses->connlist = conn;
+    }
+    return conn;
+error:
+    sam3CloseConnectionInternal(conn);
+    free(conn);
+    return NULL;
   }
-  return -1;
+  return NULL;
 }
 
 
-int samStreamAccept (Sam3Session *ses) {
+Sam3Connection *sam3StreamAccept (Sam3Session *ses) {
   if (ses != NULL) {
-    SAMFieldList *rep;
+    SAMFieldList *rep = NULL;
     char repstr[1024];
+    Sam3Connection *conn;
     //
-    if (ses->type != SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return -1; }
-    if (ses->fd < 0 || ses->fdd < 0) { strcpyerr(ses, "INVALID_SESSION"); return -1; }
-    if (sam3tcpPrintf(ses->fd, "STREAM ACCEPT ID=%s\n", ses->channel) < 0) return -1;
-    if ((rep = sam3ReadReply(ses->fd)) == NULL) return -1;
+    if (ses->type != SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return NULL; }
+    if (ses->fd < 0) { strcpyerr(ses, "INVALID_SESSION"); return NULL; }
+    if ((conn = calloc(1, sizeof(Sam3Connection))) == NULL) { strcpyerr(ses, "NO_MEMORY"); return NULL; }
+    if ((conn->fd = sam3HandshakeIP(ses->ip, ses->port)) < 0) { strcpyerr(ses, "IO_ERROR_SK"); goto error; }
+    if (sam3tcpPrintf(conn->fd, "STREAM ACCEPT ID=%s\n", ses->channel) < 0) { strcpyerr(ses, "IO_ERROR_PF"); goto error; }
+    if ((rep = sam3ReadReply(conn->fd)) == NULL) { strcpyerr(ses, "IO_ERROR_RP"); goto error; }
     if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
       const char *v = sam3FindField(rep, "RESULT");
       //
-      strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR"));
-      sam3FreeFieldList(rep);
-      return -1;
+      strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR_RES"));
+      goto error;
     }
-    if (sam3tcpReceiveStr(ses->fd, repstr, sizeof(repstr)) < 0) { strcpyerr(ses, "IO_ERROR"); return -1; }
+    if (sam3tcpReceiveStr(conn->fd, repstr, sizeof(repstr)) < 0) { strcpyerr(ses, "IO_ERROR_RP1"); goto error; }
+    sam3FreeFieldList(rep);
     if ((rep = sam3ParseReply(repstr)) != NULL) {
       const char *v = sam3FindField(rep, "RESULT");
       //
-      strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR"));
-      sam3FreeFieldList(rep);
-      return -1;
+      strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR_RES1"));
+      goto error;
     }
-    if (strlen(repstr) != SAM3_PUBKEY_SIZE) { strcpyerr(ses, "INVALID_KEY"); return -1; }
-    strcpy(ses->destkey, repstr);
+    if (strlen(repstr) != SAM3_PUBKEY_SIZE) { strcpyerr(ses, "INVALID_KEY"); goto error; }
+    sam3FreeFieldList(rep);
+    strcpy(conn->destkey, repstr);
+    conn->ses = ses;
+    conn->next = ses->connlist;
+    ses->connlist = conn;
     strcpyerr(ses, NULL);
-    return 0;
+    return conn;
+error:
+    if (rep != NULL) sam3FreeFieldList(rep);
+    sam3CloseConnectionInternal(conn);
+    free(conn);
+    return NULL;
   }
-  return -1;
+  return NULL;
 }
 
 
-int sam3DatagramSend (Sam3Session *ses, const char *hostname, int port, const char *destkey, const void *buf, int bufsize) {
+int sam3DatagramSend (Sam3Session *ses, const char *destkey, const void *buf, int bufsize) {
   if (ses != NULL) {
     char *dbuf;
     int res, dbufsz;
@@ -783,7 +877,7 @@ int sam3DatagramSend (Sam3Session *ses, const char *hostname, int port, const ch
     if ((dbuf = malloc(dbufsz)) == NULL) { strcpyerr(ses, "OUT_OF_MEMORY"); return -1; }
     sprintf(dbuf, "3.0 %s %s\n", ses->channel, destkey);
     memcpy(dbuf+strlen(dbuf), buf, bufsize);
-    res = sam3udpSendTo(hostname, port, dbuf, dbufsz);
+    res = sam3udpSendToIP(ses->ip, ses->port, dbuf, dbufsz);
     free(dbuf);
     strcpyerr(ses, (res < 0 ? "IO_ERROR" : NULL));
     return (res < 0 ? -1 : 0);
@@ -844,6 +938,61 @@ int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize) {
 // output 8 bytes for every 5 input
 // return size or <0 on error
 int sam3Base32Encode (char *dest, const void *srcbuf, int srcsize) {
+  if (dest != NULL && srcbuf != NULL && srcsize >= 0) {
+    static const char *const b32chars = "abcdefghijklmnopqrstuvwxyz234567=";
+    const unsigned char *src = (const unsigned char *)srcbuf;
+    int destsize = 0;
+    //
+    while (srcsize > 0) {
+      int blksize = (srcsize < 5 ? srcsize : 5);
+      unsigned char n[8];
+      //
+      memset(n, 0, sizeof(n));
+      switch (blksize) {
+        case 5:
+          n[7] = (src[4]&0x1f);
+          n[6] = ((src[4]&0xe0)>>5);
+        case 4:
+          n[6] |= ((src[3]&0x03)<<3);
+          n[5] = ((src[3]&0x7c)>>2);
+          n[4] = ((src[3]&0x80)>>7);
+        case 3:
+          n[4] |= ((src[2]&0x0f)<<1);
+          n[3] = ((src[2]&0xf0)>>4);
+        case 2:
+          n[3] |= ((src[1]&0x01)<<4);
+          n[2] = ((src[1]&0x3e)>>1);
+          n[1] = ((src[1]&0xc0)>>6);
+        case 1:
+          n[1] |= ((src[0]&0x07)<<2);
+          n[0] = ((src[0]&0xf8)>>3);
+          break;
+      }
+      src += blksize;
+      srcsize -= blksize;
+      // pad
+      switch (blksize) {
+        case 1: n[2] = n[3] = 32;
+        case 2: n[4] = 32;
+        case 3: n[5] = n[6] = 32;
+        case 4: n[7] = 32;
+        case 5: break;
+      }
+      // output
+      for (int f = 0; f < 8; ++f) *dest++ = b32chars[n[f]];
+      destsize += 8;
+    }
+    *dest++ = 0; // make valid asciiz string
+    return destsize;
+  }
+  return -1;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// output 8 bytes for every 5 input
+// return size or <0 on error
+int sam3Base32Decode (char *dest, const void *srcbuf, int srcsize) {
   if (dest != NULL && srcbuf != NULL && srcsize >= 0) {
     static const char *const b32chars = "abcdefghijklmnopqrstuvwxyz234567=";
     const unsigned char *src = (const unsigned char *)srcbuf;
