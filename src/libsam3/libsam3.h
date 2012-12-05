@@ -108,11 +108,11 @@ typedef enum {
   SAM3_SESSION_RAW,
   SAM3_SESSION_DGRAM,
   SAM3_SESSION_STREAM
-} SamSessionType;
+} Sam3SessionType;
 
 
 typedef struct Sam3Session {
-  SamSessionType type;
+  Sam3SessionType type;
   int fd;
   char privkey[SAM3_PRIVKEY_SIZE+1]; // (asciiz)
   char pubkey[SAM3_PUBKEY_SIZE+1]; // (asciiz)
@@ -146,7 +146,7 @@ typedef struct Sam3Connection {
  * if result==0: ok, all 'ses' fields are filled
  * TODO: don't clear 'error' field on error (and set it to something meaningful)
  */
-extern int sam3CreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type,
+extern int sam3CreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, Sam3SessionType type,
   const char *params);
 
 /*

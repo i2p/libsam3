@@ -722,7 +722,7 @@ int sam3CloseSession (Sam3Session *ses) {
 }
 
 
-int sam3CreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, SamSessionType type, const char *params) {
+int sam3CreateSession (Sam3Session *ses, const char *hostname, int port, const char *privkey, Sam3SessionType type, const char *params) {
   if (ses != NULL) {
     static const char *typenames[3] = {"RAW", "DATAGRAM", "STREAM"};
     SAMFieldList *rep;
