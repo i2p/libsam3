@@ -57,13 +57,13 @@ int main (int argc, char *argv[]) {
 ok:
   printf("creating session...\n");
   // create TRANSIENT session
-  if (samCreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_DGRAM, NULL) < 0) {
+  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_DGRAM, NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
   //
   printf("sending test datagram...\n");
-  if (sam3DatagramSend(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, destkey, "test", 4) < 0) {
+  if (sam3DatagramSend(&ses, destkey, "test", 4) < 0) {
     fprintf(stderr, "ERROR: %s\n", ses.error);
     goto error;
   }
@@ -80,7 +80,7 @@ ok:
     //
     sam3GenChannelName(big, BIG+1023, BIG+1023);
     printf("sending BIG datagram...\n");
-    if (sam3DatagramSend(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, destkey, big, BIG) < 0) {
+    if (sam3DatagramSend(&ses, destkey, big, BIG) < 0) {
       free(big);
       fprintf(stderr, "ERROR: %s\n", ses.error);
       goto error;
@@ -97,7 +97,7 @@ ok:
 #endif
   //
   printf("sending quit datagram...\n");
-  if (sam3DatagramSend(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, destkey, "quit", 4) < 0) {
+  if (sam3DatagramSend(&ses, destkey, "quit", 4) < 0) {
     fprintf(stderr, "ERROR: %s\n", ses.error);
     goto error;
   }
@@ -108,9 +108,9 @@ ok:
   buf[sz] = 0;
   printf("received: [%s]\n", buf);
   //
-  samCloseSession(&ses);
+  sam3CloseSession(&ses);
   return 0;
 error:
-  samCloseSession(&ses);
+  sam3CloseSession(&ses);
   return 1;
 }

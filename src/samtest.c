@@ -20,7 +20,7 @@ int main (int argc, char *argv[]) {
   SAMFieldList *rep = NULL;
   const char *v;
   //
-  if ((fd = samHandshake(NULL, 0)) < 0) return 1;
+  if ((fd = sam3Handshake(NULL, 0, NULL)) < 0) return 1;
   //
   if (sam3tcpPrintf(fd, "DEST GENERATE\n") < 0) goto error;
   rep = sam3ReadReply(fd);

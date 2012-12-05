@@ -24,7 +24,7 @@ int main (int argc, char *argv[]) {
   //
   for (int n = 1; n < argc; ++n) {
     fprintf(stdout, "%s ... ", argv[n]); fflush(stdout);
-    if (samNameLookup(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, argv[n]) >= 0) {
+    if (sam3NameLookup(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, argv[n]) >= 0) {
       fprintf(stdout, "%s\n\n", ses.destkey);
     } else {
       fprintf(stdout, "FAILED [%s]\n", ses.error);

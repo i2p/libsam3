@@ -20,6 +20,7 @@
 
 int main (int argc, char *argv[]) {
   Sam3Session ses;
+  Sam3Connection *conn;
   char cmd[1024], destkey[517]; // 516 chars + \0
   //
   //libsam3_debug = 1;
@@ -49,31 +50,33 @@ int main (int argc, char *argv[]) {
 ok:
   printf("creating session...\n");
   // create TRANSIENT session
-  if (samCreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_STREAM, NULL) < 0) {
+  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_STREAM, NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
   //
   printf("connecting...\n");
-  if (samStreamConnect(&ses, destkey) < 0) {
+  if ((conn = sam3StreamConnect(&ses, destkey)) == NULL) {
     fprintf(stderr, "FATAL: can't connect: %s\n", ses.error);
-    samCloseSession(&ses);
+    sam3CloseSession(&ses);
     return 1;
   }
   //
   // now waiting for incoming connection
   printf("sending test command...\n");
-  if (sam3tcpPrintf(ses.fd, "test\n") < 0) goto error;
-  if (sam3tcpReceiveStr(ses.fd, cmd, sizeof(cmd)) < 0) goto error;
+  if (sam3tcpPrintf(conn->fd, "test\n") < 0) goto error;
+  if (sam3tcpReceiveStr(conn->fd, cmd, sizeof(cmd)) < 0) goto error;
   printf("echo: %s\n", cmd);
   //
   printf("sending quit command...\n");
-  if (sam3tcpPrintf(ses.fd, "quit\n") < 0) goto error;
+  if (sam3tcpPrintf(conn->fd, "quit\n") < 0) goto error;
   //
-  samCloseSession(&ses);
+  sam3CloseConnection(conn);
+  sam3CloseSession(&ses);
   return 0;
 error:
   fprintf(stderr, "FATAL: some error occured!\n");
-  samCloseSession(&ses);
+  sam3CloseConnection(conn);
+  sam3CloseSession(&ses);
   return 1;
 }

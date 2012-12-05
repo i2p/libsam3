@@ -20,13 +20,14 @@
 
 int main (int argc, char *argv[]) {
   Sam3Session ses;
+  Sam3Connection *conn;
   FILE *fl;
   //
   //libsam3_debug = 1;
   //
   printf("creating session...\n");
   // create TRANSIENT session
-  if (samCreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_STREAM, NULL) < 0) {
+  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_STREAM, NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
@@ -38,30 +39,30 @@ int main (int argc, char *argv[]) {
   }
   //
   printf("starting stream acceptor...\n");
-  if (samStreamAccept(&ses) < 0) {
+  if ((conn = sam3StreamAccept(&ses)) == NULL) {
     fprintf(stderr, "FATAL: can't accept: %s\n", ses.error);
-    samCloseSession(&ses);
+    sam3CloseSession(&ses);
     return 1;
   }
-  printf("FROM\n====\n%s\n====\n", ses.destkey);
+  printf("FROM\n====\n%s\n====\n", conn->destkey);
   //
   printf("starting main loop...\n");
   for (;;) {
     char cmd[256];
     //
-    if (sam3tcpReceiveStr(ses.fd, cmd, sizeof(cmd)) < 0) goto error;
+    if (sam3tcpReceiveStr(conn->fd, cmd, sizeof(cmd)) < 0) goto error;
     printf("cmd: [%s]\n", cmd);
     if (strcmp(cmd, "quit") == 0) break;
     // echo command
-    if (sam3tcpPrintf(ses.fd, "re: %s\n", cmd) < 0) goto error;
+    if (sam3tcpPrintf(conn->fd, "re: %s\n", cmd) < 0) goto error;
   }
   //
-  samCloseSession(&ses);
+  sam3CloseSession(&ses);
   unlink(KEYFILE);
   return 0;
 error:
   fprintf(stderr, "FATAL: some error occured!\n");
-  samCloseSession(&ses);
+  sam3CloseSession(&ses);
   unlink(KEYFILE);
   return 1;
 }

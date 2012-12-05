@@ -26,7 +26,7 @@ int main (int argc, char *argv[]) {
   //libsam3_debug = 1;
   //
   printf("generating keys...\n");
-  if (samGenerateKeys(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT) < 0) {
+  if (sam3GenerateKeys(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT) < 0) {
     fprintf(stderr, "FATAL: can't generate keys\n");
     return 1;
   }
@@ -35,14 +35,14 @@ int main (int argc, char *argv[]) {
   strcpy(privkey, ses.privkey);
   //
   printf("creating session...\n");
-  if (samCreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, privkey, SAM3_SESSION_DGRAM, NULL) < 0) {
+  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, privkey, SAM3_SESSION_DGRAM, NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
   //
   if (strcmp(pubkey, ses.pubkey) != 0) {
     fprintf(stderr, "FATAL: internal error\n");
-    samCloseSession(&ses);
+    sam3CloseSession(&ses);
     return 1;
   }
   //
@@ -71,7 +71,7 @@ int main (int argc, char *argv[]) {
     isquit = (sz == 4 && memcmp(buf+4, "quit", 4) == 0);
     // echo datagram
     memcpy(buf, "re: ", 4);
-    if (sam3DatagramSend(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, ses.destkey, buf, sz+4) < 0) {
+    if (sam3DatagramSend(&ses, ses.destkey, buf, sz+4) < 0) {
       fprintf(stderr, "ERROR: %s\n", ses.error);
       goto error;
     }
@@ -84,12 +84,12 @@ int main (int argc, char *argv[]) {
   }
   //
   if (buf != NULL) free(buf);
-  samCloseSession(&ses);
+  sam3CloseSession(&ses);
   unlink(KEYFILE);
   return 0;
 error:
   if (buf != NULL) free(buf);
-  samCloseSession(&ses);
+  sam3CloseSession(&ses);
   unlink(KEYFILE);
   return 1;
 }
