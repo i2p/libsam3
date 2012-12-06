@@ -49,6 +49,11 @@ extern void sam3ams2timeval (struct timeval *tv, uint64_t ms);
 
 
 ////////////////////////////////////////////////////////////////////////////////
+extern int sam3aIsValidPubKey (const char *key);
+extern int sam3aIsValidPrivKey (const char *key);
+
+
+////////////////////////////////////////////////////////////////////////////////
 typedef struct Sam3ASession Sam3ASession;
 typedef struct Sam3AConnection Sam3AConnection;
 
@@ -112,7 +117,7 @@ typedef struct {
   void (*cbError) (Sam3AConnection *ct);
   void (*cbDisconnected) (Sam3AConnection *ct); // or closed; only after cbConnected()/cbAccepted(); note that force disconnect is ok
   void (*cbConnected) (Sam3AConnection *ct);
-  void (*cbAccepted) (Sam3AConnection *ct);
+  void (*cbAccepted) (Sam3AConnection *ct); // will be called instead of cbConnected() for sam3aStreamAccept*(), destkey filled
   void (*cbSent) (Sam3AConnection *ct); // data sent, can add new data; will be called after connect/accept
   void (*cbRead) (Sam3AConnection *ct, const void *buf, int bufsize); // data read (bufsize is always > 0)
   //
@@ -179,6 +184,9 @@ static inline int sam3aCreateSession (Sam3ASession *ses, const Sam3ASessionCallb
 {
   return sam3aCreateSessionEx(ses, cb, hostname, port, privkey, type, NULL, -1);
 }
+
+/* returns <0 on error, 0 if no, >0 if yes */
+extern int sam3aIsHaveActiveConnections (const Sam3ASession *ses);
 
 /*
  * close SAM session (and all it's connections)
