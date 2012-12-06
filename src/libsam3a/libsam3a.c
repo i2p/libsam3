@@ -171,6 +171,7 @@ static int sam3aSendBytes (int fd, const void *buf, int bufSize) {
 
 /* <0: error; >=0: bytes received */
 /* note that you should call this function when there is some bytes to read, so 0 means 'connection closed' */
+/*
 static int sam3aReceive (int fd, void *buf, int bufSize) {
   char *c = (char *)buf;
   int total = 0;
@@ -196,10 +197,11 @@ static int sam3aReceive (int fd, void *buf, int bufSize) {
   //
   return total;
 }
+*/
 
 
 ////////////////////////////////////////////////////////////////////////////////
-static char *sam3PrintfVA (int *plen, const char *fmt, va_list app) {
+char *sam3PrintfVA (int *plen, const char *fmt, va_list app) {
   char buf[1024], *p = buf;
   int size = sizeof(buf)-1, len = 0;
   //
@@ -232,7 +234,7 @@ static char *sam3PrintfVA (int *plen, const char *fmt, va_list app) {
 }
 
 
-static __attribute__((format(printf,2,3))) char *sam3Printf (int *plen, const char *fmt, ...) {
+__attribute__((format(printf,2,3))) char *sam3Printf (int *plen, const char *fmt, ...) {
   va_list ap;
   char *res;
   //
@@ -354,7 +356,7 @@ typedef struct SAMFieldList {
 } SAMFieldList;
 
 
-void sam3aFreeFieldList (SAMFieldList *list) {
+static void sam3aFreeFieldList (SAMFieldList *list) {
   while (list != NULL) {
     SAMFieldList *c = list;
     //
@@ -366,14 +368,14 @@ void sam3aFreeFieldList (SAMFieldList *list) {
 }
 
 
-void sam3aDumpFieldList (const SAMFieldList *list) {
+static void sam3aDumpFieldList (const SAMFieldList *list) {
   for (; list != NULL; list = list->next) {
     fprintf(stderr, "%s=[%s]\n", list->name, list->value);
   }
 }
 
 
-const char *sam3aFindField (const SAMFieldList *list, const char *field) {
+static const char *sam3aFindField (const SAMFieldList *list, const char *field) {
   if (list != NULL && field != NULL) {
     for (list = list->next; list != NULL; list = list->next) {
       if (list->name != NULL && strcmp(field, list->name) == 0) return list->value;
@@ -1146,6 +1148,87 @@ static __attribute__((format(printf,3,4))) int aioConnSendCmdWaitReply (Sam3ACon
 
 
 ////////////////////////////////////////////////////////////////////////////////
+static void aioConnDataReader (Sam3AConnection *conn) {
+  char *buf = NULL;
+  int bufsz = 0;
+  //
+  while (sam3aIsActiveConnection(conn)) {
+    int av = sam3aBytesAvail(conn->fd), rd;
+    //
+    if (av < 0) { if (buf != NULL) free(buf); connError(conn, "IO_ERROR"); return; }
+    if (av == 0) av = 1;
+    if (bufsz < av) {
+      char *n = realloc(buf, av+1);
+      //
+      if (n == NULL) { if (buf != NULL) free(buf); connError(conn, "IO_ERROR"); return; }
+      buf = n;
+      bufsz = av;
+    }
+    memset(buf, 0, av+1);
+    //
+    rd = recv(conn->fd, buf, av, 0);
+    //
+    if (rd < 0) {
+      if (errno == EINTR) continue; // interrupted by signal
+      if (errno == EAGAIN || errno == EWOULDBLOCK) break; // no more data
+      free(buf);
+      connError(conn, "IO_ERROR");
+      return;
+    }
+    //
+    if (rd == 0) {
+      // connection closed
+      free(buf);
+      connDisconnect(conn);
+      return;
+    }
+    //
+    if (conn->cb.cbRead != NULL) conn->cb.cbRead(conn, buf, rd);
+  }
+  free(buf);
+}
+
+
+static void aioConnDataWriter (Sam3AConnection *conn) {
+  if (!sam3aIsActiveConnection(conn)) {
+    conn->aio.dataPos = conn->aio.dataUsed = 0;
+    return;
+  }
+  //
+  if (conn->aio.dataPos >= conn->aio.dataUsed) {
+    conn->aio.dataPos = conn->aio.dataUsed = 0;
+    return;
+  }
+  //
+  while (sam3aIsActiveConnection(conn) && conn->aio.dataPos < conn->aio.dataUsed) {
+    int wr = sam3aSendBytes(conn->fd, conn->aio.data+conn->aio.dataPos, conn->aio.dataUsed-conn->aio.dataPos);
+    //
+    if (wr < 0) { connError(conn, "IO_ERROR"); return; }
+    if (wr == 0) break; // can't write more bytes
+    conn->aio.dataPos += wr;
+    if (conn->aio.dataPos < conn->aio.dataUsed) {
+      memmove(conn->aio.data, conn->aio.data+conn->aio.dataPos, conn->aio.dataUsed-conn->aio.dataPos);
+      conn->aio.dataUsed -= conn->aio.dataPos;
+      conn->aio.dataPos = 0;
+    }
+  }
+  //
+  if (conn->aio.dataPos >= conn->aio.dataUsed) {
+    conn->aio.dataPos = conn->aio.dataUsed = 0;
+    if (conn->cb.cbSent != NULL) conn->cb.cbSent(conn);
+    if (conn->aio.dataSize > 8192) {
+      // shrink buffer
+      char *nn = realloc(conn->aio.data, 8192);
+      //
+      if (nn != NULL) {
+        conn->aio.data = nn;
+        conn->aio.dataSize = 8192;
+      }
+    }
+  }
+}
+
+
 static void aioConnHelloChecker (Sam3AConnection *conn) {
   SAMFieldList *rep = sam3aParseReply(conn->aio.data);
   //
@@ -1201,6 +1284,9 @@ static void aioConnConnectChecker (Sam3AConnection *conn) {
     // no error
     sam3aFreeFieldList(rep);
     conn->callDisconnectCB = 1;
+    conn->cbAIOProcessorR = aioConnDataReader;
+    conn->cbAIOProcessorW = aioConnDataWriter;
+    conn->aio.dataPos = conn->aio.dataUsed = 0;
     if (conn->cb.cbConnected != NULL) conn->cb.cbConnected(conn);
     // indicate that we are ready for new data
     if (sam3aIsActiveConnection(conn) && conn->cb.cbSent != NULL) conn->cb.cbSent(conn);
@@ -1243,6 +1329,33 @@ error:
     free(conn);
   }
   return NULL;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+int sam3aSend (Sam3AConnection *conn, const void *data, int datasize) {
+  if (datasize == -1) datasize = (data != NULL ? strlen((const char *)data) : 0);
+  //
+  if (sam3aIsActiveConnection(conn) && conn->callDisconnectCB && ((datasize > 0 && data != NULL) || datasize == 0)) {
+    // try to add data to send buffer
+    if (datasize > 0) {
+      if (conn->aio.dataUsed+datasize > conn->aio.dataSize) {
+        // we need more pepper!
+        int newsz = conn->aio.dataUsed+datasize;
+        char *nb = realloc(conn->aio.data, newsz);
+        //
+        if (nb == NULL) return -1; // alas
+        conn->aio.data = nb;
+        conn->aio.dataSize = newsz;
+      }
+      //
+      memcpy(conn->aio.data+conn->aio.dataUsed, data, datasize);
+      conn->aio.dataUsed += datasize;
+    }
+    return 0;
+  }
+  //
+  return -1;
 }
 
 
@@ -1297,6 +1410,7 @@ int sam3aAddSessionToFDS (Sam3ASession *ses, int maxfd, fd_set *rds, fd_set *wrs
           }
           //
           if (wrs != NULL && c->cbAIOProcessorW != NULL) {
+            if (!c->callDisconnectCB || (c->aio.dataPos < c->aio.dataUsed))
             if (maxfd < c->fd) maxfd = c->fd;
             FD_SET(c->fd, wrs);
           }

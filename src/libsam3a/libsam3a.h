@@ -11,6 +11,7 @@
 #ifndef LIBSAM3A_H
 #define LIBSAM3A_H
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -240,11 +241,9 @@ extern int sam3aCancelConnection (Sam3AConnection *conn);
 ////////////////////////////////////////////////////////////////////////////////
 /*
  * send data
- * this function should be used in cbSent() callback
- * if it is used outside of callback, it can return positive non-zero number,
- * which indicates that sending queue is full; but it can queue some data
- * if there is space in queue
- * return: <0: error; 0: ok; >0: send queue not empty, can't send data
+ * this function can be used in cbSent() callback
+ * 
+ * return: <0: error; 0: ok
  */
 extern int sam3aSend (Sam3AConnection *conn, const void *data, int datasize);
 
@@ -314,6 +313,12 @@ extern int sam3aAddSessionToFDS (Sam3ASession *ses, int maxfd, fd_set *rds, fd_s
  * should be called after successful select()
  */
 extern void sam3aProcessSessionIO (Sam3ASession *ses, fd_set *rds, fd_set *wrs);
+
+
+////////////////////////////////////////////////////////////////////////////////
+/* return malloc()ed buffer and len in 'plen' (if plen != NULL) */
+extern char *sam3PrintfVA (int *plen, const char *fmt, va_list app);
+extern char *sam3Printf (int *plen, const char *fmt, ...) __attribute__((format(printf,2,3)));
 
 
 #ifdef __cplusplus
