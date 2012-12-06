@@ -253,22 +253,33 @@ extern int sam3aGenChannelName (char *dest, int minlen, int maxlen);
 /*
  * generate new keypair
  * fills 'privkey' and 'pubkey' only
- * you should not call sam3aCloseSession() on 'ses'
- * will not set 'error' field
+ * you should call sam3aCloseSession() on 'ses'
+ * cbCreated callback will be called when keys generated
  * returns <0 on error, 0 on ok
- * WARNING: this is BLOCKING operation
  */
-extern int sam3aGenerateKeys (Sam3ASession *ses, const char *hostname, int port);
+extern int sam3aGenerateKeysEx (Sam3ASession *ses, const Sam3ASessionCallbacks *cb, const char *hostname, int port,
+  int timeoutms);
+
+static inline int sam3aGenerateKeys (Sam3ASession *ses, const Sam3ASessionCallbacks *cb, const char *hostname, int port) {
+  return sam3aGenerateKeysEx(ses, cb, hostname, port, -1);
+}
+
 
 /*
  * do name lookup (something like gethostbyname())
  * fills 'destkey' only
- * you should not call sam3aCloseSession() on 'ses'
- * will set 'error' field
+ * you should call sam3aCloseSession() on 'ses'
+ * cbCreated callback will be called when keys generated, ses->destkey will be set
  * returns <0 on error, 0 on ok
- * WARNING: this is BLOCKING operation
  */
-extern int sam3aNameLookup (Sam3ASession *ses, const char *hostname, int port, const char *name);
+extern int sam3aNameLookupEx (Sam3ASession *ses, const Sam3ASessionCallbacks *cb, const char *hostname, int port,
+  const char *name, int timeoutms);
+
+static inline int sam3aNameLookup (Sam3ASession *ses, const Sam3ASessionCallbacks *cb, const char *hostname, int port,
+  const char *name)
+{
+  return sam3aNameLookupEx(ses, cb, hostname, port, name, -1);
+}
 
 
 ////////////////////////////////////////////////////////////////////////////////

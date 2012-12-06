@@ -785,7 +785,7 @@ static void aioSesHelloChecker (Sam3ASession *ses) {
 
 
 static int sam3aSesStartHandshake (Sam3ASession *ses, void (*cbComplete)(Sam3ASession *ses)) {
-  ses->aio.udata = cbComplete;
+  if (cbComplete != NULL) ses->aio.udata = cbComplete;
   if (aioSesSendCmdWaitReply(ses, aioSesHelloChecker, "%s\n", "HELLO VERSION MIN=3.0 MAX=3.0") < 0) return -1;
   return 0;
 }
@@ -833,7 +833,6 @@ static void aioSesCreateChecker (Sam3ASession *ses) {
   // get our public key
   if (aioSesSendCmdWaitReply(ses, aioSesNameMeChecker, "%s\n", "NAMING LOOKUP NAME=ME") < 0) {
     sesError(ses, "MEMORY_ERROR");
-    return;
   }
 }
 
@@ -846,7 +845,6 @@ static void aioSesHandshacked (Sam3ASession *ses) {
                              typenames[(int)ses->type], ses->channel, ses->privkey,
                              (ses->params != NULL ? " " : ""), (ses->params != NULL ? ses->params : "")) < 0) {
     sesError(ses, "MEMORY_ERROR");
-    return;
   }
 }
 
@@ -857,7 +855,7 @@ static void aioSesConnected (Sam3ASession *ses) {
   //
   if (getsockopt(ses->fd, SOL_SOCKET, SO_ERROR, &res, &len) == 0 && res == 0) {
     // ok, connected
-    if (sam3aSesStartHandshake(ses, aioSesHandshacked) < 0) sesError(ses, NULL);
+    if (sam3aSesStartHandshake(ses, NULL) < 0) sesError(ses, NULL);
   } else {
     // connection error
     sesError(ses, "CONNECTION_ERROR");
@@ -891,6 +889,7 @@ int sam3aCreateAsyncSessionEx (Sam3ASession *ses, const Sam3ASessionCallbacks *c
     sam3aGenChannelName(ses->channel, 32, 64);
     if (libsam3a_debug) fprintf(stderr, "sam3aCreateSession: channel=[%s]\n", ses->channel);
     //
+    ses->aio.udata = aioSesHandshacked;
     ses->cbAIOProcessorW = aioSesConnected;
     if ((ses->fd = sam3aConnect(ses->ip, port, NULL)) < 0) goto error;
     /*
@@ -938,6 +937,133 @@ int sam3aCloseSession (Sam3ASession *ses) {
     if (ses->cb.cbDestroy != NULL) ses->cb.cbDestroy(ses);
     if (ses->params != NULL) { free(ses->params); ses->params = NULL; }
     memset(ses, 0, sizeof(Sam3ASession));
+  }
+  return -1;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+static void aioSesKeyGenChecker (Sam3ASession *ses) {
+  SAMFieldList *rep = sam3aParseReply(ses->aio.data);
+  //
+  if (rep == NULL) { sesError(ses, NULL); return; }
+  if (sam3aIsGoodReply(rep, "DEST", "REPLY", NULL, NULL)) {
+    const char *pub = sam3aFindField(rep, "PUB"), *priv = sam3aFindField(rep, "PRIV");
+    //
+    if (pub != NULL && strlen(pub) == SAM3A_PUBKEY_SIZE && priv != NULL && strlen(priv) == SAM3A_PRIVKEY_SIZE) {
+      strcpy(ses->pubkey, pub);
+      strcpy(ses->privkey, priv);
+      sam3aFreeFieldList(rep);
+      if (ses->cb.cbCreated != NULL) ses->cb.cbCreated(ses);
+      sam3aCancelSession(ses);
+      return;
+    }
+  }
+  sam3aFreeFieldList(rep);
+  sesError(ses, NULL);
+}
+
+
+// handshake for SESSION CREATE complete
+static void aioSesKeyGenHandshacked (Sam3ASession *ses) {
+  if (aioSesSendCmdWaitReply(ses, aioSesKeyGenChecker, "%s\n", "DEST GENERATE") < 0) {
+    sesError(ses, "MEMORY_ERROR");
+  }
+}
+
+
+int sam3aGenerateKeysEx (Sam3ASession *ses, const Sam3ASessionCallbacks *cb, const char *hostname, int port, int timeoutms) {
+  if (ses != NULL) {
+    memset(ses, 0, sizeof(Sam3ASession));
+    ses->fd = -1;
+    if (cb != NULL) ses->cb = *cb;
+    if (hostname == NULL || !hostname[0]) hostname = "127.0.0.1";
+    if (port < 0 || port > 65535) goto error;
+    ses->timeoutms = timeoutms;
+    //
+    if (!port) port = DEFAULT_TCP_PORT;
+    ses->port = port;
+    if ((ses->ip = sam3aResolveHost(hostname)) == 0) goto error;
+    //
+    ses->aio.udata = aioSesKeyGenHandshacked;
+    ses->cbAIOProcessorW = aioSesConnected;
+    if ((ses->fd = sam3aConnect(ses->ip, port, NULL)) < 0) goto error;
+    //
+    return 0; // ok, connection process initiated
+error:
+    if (ses->fd >= 0) sam3aDisconnect(ses->fd);
+    if (ses->params != NULL) free(ses->params);
+    memset(ses, 0, sizeof(Sam3ASession));
+    ses->fd = -1;
+  }
+  return -1;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+static void aioSesNameResChecker (Sam3ASession *ses) {
+  SAMFieldList *rep = sam3aParseReply(ses->aio.data);
+  //
+  if (rep == NULL) { sesError(ses, NULL); return; }
+  if (sam3aIsGoodReply(rep, "NAMING", "REPLY", "RESULT", NULL)) {
+    const char *rs = sam3aFindField(rep, "RESULT"), *pub = sam3aFindField(rep, "VALUE");
+    //
+    if (strcmp(rs, "OK") == 0) {
+      if (pub != NULL && strlen(pub) == SAM3A_PUBKEY_SIZE) {
+        strcpy(ses->destkey, pub);
+        sam3aFreeFieldList(rep);
+        if (ses->cb.cbCreated != NULL) ses->cb.cbCreated(ses);
+        sam3aCancelSession(ses);
+        return;
+      }
+      sam3aFreeFieldList(rep);
+      sesError(ses, NULL);
+    } else {
+      sesError(ses, rs);
+      sam3aFreeFieldList(rep);
+    }
+  }
+}
+
+
+// handshake for SESSION CREATE complete
+static void aioSesNameResHandshacked (Sam3ASession *ses) {
+  if (aioSesSendCmdWaitReply(ses, aioSesNameResChecker, "NAMING LOOKUP NAME=%s\n", ses->params) < 0) {
+    sesError(ses, "MEMORY_ERROR");
+  }
+}
+
+
+int sam3aNameLookupEx (Sam3ASession *ses, const Sam3ASessionCallbacks *cb, const char *hostname, int port,
+  const char *name, int timeoutms)
+{
+  if (ses != NULL) {
+    memset(ses, 0, sizeof(Sam3ASession));
+    ses->fd = -1;
+    if (cb != NULL) ses->cb = *cb;
+    if (name == NULL || !name[0] ||
+        (name[0] && toupper(name[0]) == 'M' &&
+         name[1] && toupper(name[1]) == 'E' &&
+         (!name[2] || isspace(name[2])))) goto error;
+    if (hostname == NULL || !hostname[0]) hostname = "127.0.0.1";
+    if (port < 0 || port > 65535) goto error;
+    if ((ses->params = strdup(name)) == NULL) goto error;
+    ses->timeoutms = timeoutms;
+    //
+    if (!port) port = DEFAULT_TCP_PORT;
+    ses->port = port;
+    if ((ses->ip = sam3aResolveHost(hostname)) == 0) goto error;
+    //
+    ses->aio.udata = aioSesNameResHandshacked;
+    ses->cbAIOProcessorW = aioSesConnected;
+    if ((ses->fd = sam3aConnect(ses->ip, port, NULL)) < 0) goto error;
+    //
+    return 0; // ok, connection process initiated
+error:
+    if (ses->fd >= 0) sam3aDisconnect(ses->fd);
+    if (ses->params != NULL) free(ses->params);
+    memset(ses, 0, sizeof(Sam3ASession));
+    ses->fd = -1;
   }
   return -1;
 }
