@@ -642,18 +642,35 @@ static inline void strcpyerrc (Sam3AConnection *conn, const char *errstr) {
 }
 
 
-static void sesError (Sam3ASession *ses, const char *errstr) {
-  if (errstr == NULL || !errstr[0]) errstr = "I2P_ERROR";
-  strcpyerrs(ses, errstr);
+static void connDisconnect (Sam3AConnection *conn) {
+  conn->cbAIOProcessorR = conn->cbAIOProcessorW = NULL;
+  if (conn->aio.data != NULL) { free(conn->aio.data); conn->aio.data = NULL; }
+  if (!conn->cancelled && conn->fd >= 0) {
+    conn->cancelled = 1;
+    shutdown(conn->fd, SHUT_RDWR);
+    if (conn->callDisconnectCB && conn->cb.cbDisconnected != NULL) conn->cb.cbDisconnected(conn);
+  }
+}
+
+
+static void sesDisconnect (Sam3ASession *ses) {
   ses->cbAIOProcessorR = ses->cbAIOProcessorW = NULL;
   if (ses->aio.data != NULL) { free(ses->aio.data); ses->aio.data = NULL; }
   if (!ses->cancelled && ses->fd >= 0) {
     ses->cancelled = 1;
     shutdown(ses->fd, SHUT_RDWR);
+    for (Sam3AConnection *c = ses->connlist; c != NULL; c = c->next) connDisconnect(c);
     if (ses->callDisconnectCB && ses->cb.cbDisconnected != NULL) ses->cb.cbDisconnected(ses);
   }
-  //if (ses->params != NULL) { free(ses->params); ses->params = NULL; }
+}
+
+
+static void sesError (Sam3ASession *ses, const char *errstr) {
+  if (errstr == NULL || !errstr[0]) errstr = "I2P_ERROR";
+  strcpyerrs(ses, errstr);
   if (ses->cb.cbError != NULL) ses->cb.cbError(ses);
+  sesDisconnect(ses);
+  //if (ses->params != NULL) { free(ses->params); ses->params = NULL; }
 }
 
 
@@ -911,17 +928,6 @@ error:
 
 
 ////////////////////////////////////////////////////////////////////////////////
-static void sesDisconnect (Sam3ASession *ses) {
-  ses->cbAIOProcessorR = ses->cbAIOProcessorW = NULL;
-  if (ses->aio.data != NULL) { free(ses->aio.data); ses->aio.data = NULL; }
-  if (!ses->cancelled && ses->fd >= 0) {
-    ses->cancelled = 1;
-    shutdown(ses->fd, SHUT_RDWR);
-    if (ses->callDisconnectCB && ses->cb.cbDisconnected != NULL) ses->cb.cbDisconnected(ses);
-  }
-}
-
-
 int sam3aCancelSession (Sam3ASession *ses) {
   if (ses != NULL) {
     sesDisconnect(ses);
@@ -934,6 +940,7 @@ int sam3aCancelSession (Sam3ASession *ses) {
 int sam3aCloseSession (Sam3ASession *ses) {
   if (ses != NULL) {
     sam3aCancelSession(ses);
+    while (ses->connlist != NULL) sam3aCloseConnection(ses->connlist);
     if (ses->cb.cbDestroy != NULL) ses->cb.cbDestroy(ses);
     if (ses->params != NULL) { free(ses->params); ses->params = NULL; }
     memset(ses, 0, sizeof(Sam3ASession));
@@ -1064,6 +1071,34 @@ error:
     if (ses->params != NULL) free(ses->params);
     memset(ses, 0, sizeof(Sam3ASession));
     ses->fd = -1;
+  }
+  return -1;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+int sam3aCancelConnection (Sam3AConnection *conn) {
+  if (conn != NULL) {
+    connDisconnect(conn);
+    return 0;
+  }
+  return -1;
+}
+
+
+int sam3aCloseConnection (Sam3AConnection *conn) {
+  if (conn != NULL) {
+    sam3aCancelConnection(conn);
+    if (conn->cb.cbDestroy != NULL) conn->cb.cbDestroy(conn);
+    for (Sam3AConnection *p = NULL, *c = conn->ses->connlist; c != NULL; p = c, c = c->next) {
+      if (c == conn) {
+        // got it!
+        if (p == NULL) c->ses->connlist = c->next; else p->next = c->next;
+        break;
+      }
+    }
+    memset(conn, 0, sizeof(Sam3AConnection));
+    free(conn);
   }
   return -1;
 }

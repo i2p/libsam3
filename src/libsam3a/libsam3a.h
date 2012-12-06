@@ -102,7 +102,7 @@ struct Sam3ASession {
 
 typedef struct {
   void (*cbError) (Sam3AConnection *ct);
-  void (*cbDisconnected) (Sam3AConnection *ct); // or closed; only after cbConnected()/cbAccepted()
+  void (*cbDisconnected) (Sam3AConnection *ct); // or closed; only after cbConnected()/cbAccepted(); note that force disconnect is ok
   void (*cbConnected) (Sam3AConnection *ct);
   void (*cbAccepted) (Sam3AConnection *ct);
   void (*cbSent) (Sam3AConnection *ct); // data sent, can add new data; will be called after connect/accept
@@ -203,7 +203,7 @@ extern Sam3AConnection *sam3aStreamConnect (Sam3ASession *ses, const Sam3AConnec
 extern Sam3AConnection *sam3aStreamAccept (Sam3ASession *ses, const Sam3AConnectionCallbacks *cb);
 
 /*
- * close SAM connection
+ * close SAM connection, remove it from session and free memory
  * returns <0 on error, 0 on ok
  * 'conn' must be properly initialized
  * 'conn' is invalid after call
