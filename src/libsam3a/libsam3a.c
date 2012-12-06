@@ -670,12 +670,19 @@ static void sesError (Sam3ASession *ses, const char *errstr) {
   strcpyerrs(ses, errstr);
   if (ses->cb.cbError != NULL) ses->cb.cbError(ses);
   sesDisconnect(ses);
-  //if (ses->params != NULL) { free(ses->params); ses->params = NULL; }
+}
+
+
+static void connError (Sam3AConnection *conn, const char *errstr) {
+  if (errstr == NULL || !errstr[0]) errstr = "I2P_ERROR";
+  strcpyerrc(conn, errstr);
+  if (conn->cb.cbError != NULL) conn->cb.cbError(conn);
+  connDisconnect(conn);
 }
 
 
 ////////////////////////////////////////////////////////////////////////////////
-static int aioSender (int fd, Sam3AAsyncIO *aio) {
+static int aioSender (int fd, Sam3AIO *aio) {
   int wr = sam3aSendBytes(fd, aio->data+aio->dataPos, aio->dataUsed-aio->dataPos);
   //
   if (wr < 0) return -1;
@@ -686,7 +693,7 @@ static int aioSender (int fd, Sam3AAsyncIO *aio) {
 
 // dataUsed: max line size (with '\n')
 // dataSize: must be at least (dataUsed+1)
-static int aioLineReader (int fd, Sam3AAsyncIO *aio) {
+static int aioLineReader (int fd, Sam3AIO *aio) {
   //
   for (;;) {
     int av = sam3aBytesAvail(fd), rd;
@@ -881,7 +888,7 @@ static void aioSesConnected (Sam3ASession *ses) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-int sam3aCreateAsyncSessionEx (Sam3ASession *ses, const Sam3ASessionCallbacks *cb,
+int sam3aCreateSessionEx (Sam3ASession *ses, const Sam3ASessionCallbacks *cb,
   const char *hostname, int port, const char *privkey, Sam3ASessionType type, const char *params, int timeoutms)
 {
   if (ses != NULL) {
@@ -1077,6 +1084,169 @@ error:
 
 
 ////////////////////////////////////////////////////////////////////////////////
+static void aioConnCmdReplyReader (Sam3AConnection *conn) {
+  int res = aioLineReader(conn->fd, &conn->aio);
+  //
+  if (res < 0) { connError(conn, "IO_ERROR"); return; }
+  if (res > 0) {
+    // we got full line
+    if (libsam3a_debug) fprintf(stderr, "CMDREPLY: %s\n", conn->aio.data);
+    if (conn->aio.cbReplyCheckConn != NULL) conn->aio.cbReplyCheckConn(conn);
+  }
+}
+
+
+static void aioConnCmdSender (Sam3AConnection *conn) {
+  if (conn->aio.dataPos < conn->aio.dataUsed) {
+    if (aioSender(conn->fd, &conn->aio) < 0) { connError(conn, "IO_ERROR"); return; }
+  }
+  //
+  if (conn->aio.dataPos == conn->aio.dataUsed) {
+    // hello sent, now wait for reply
+    // 2048 bytes of reply line should be enough
+    if (conn->aio.dataSize < 2049) {
+      char *n = realloc(conn->aio.data, 2049);
+      //
+      if (n == NULL) { connError(conn, "MEMORY_ERROR"); return; }
+      conn->aio.data = n;
+      conn->aio.dataSize = 2049;
+    }
+    conn->aio.dataUsed = 2048;
+    conn->aio.dataPos = 0;
+    conn->cbAIOProcessorR = aioConnCmdReplyReader;
+    conn->cbAIOProcessorW = NULL;
+  }
+}
+
+
+static __attribute__((format(printf,3,4))) int aioConnSendCmdWaitReply (Sam3AConnection *conn,
+  void (*cbCheck)(Sam3AConnection *conn), const char *fmt, ...)
+{
+  va_list ap;
+  char *str;
+  int len;
+  //
+  va_start(ap, fmt);
+  str = sam3PrintfVA(&len, fmt, ap);
+  va_end(ap);
+  //
+  if (str == NULL) return -1;
+  if (conn->aio.data != NULL) free(conn->aio.data);
+  conn->aio.data = str;
+  conn->aio.dataUsed = len;
+  conn->aio.dataSize = len+1;
+  conn->aio.dataPos = 0;
+  conn->aio.cbReplyCheckConn = cbCheck;
+  conn->cbAIOProcessorR = NULL;
+  conn->cbAIOProcessorW = aioConnCmdSender;
+  //
+  if (libsam3a_debug) fprintf(stderr, "CMD: %s", str);
+  return 0;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+static void aioConnHelloChecker (Sam3AConnection *conn) {
+  SAMFieldList *rep = sam3aParseReply(conn->aio.data);
+  //
+  if (rep != NULL &&
+      sam3aIsGoodReply(rep, "HELLO", "REPLY", "RESULT", "OK") &&
+      sam3aIsGoodReply(rep, NULL, NULL, "VERSION", "3.0")) {
+    conn->cbAIOProcessorR = conn->cbAIOProcessorW = NULL;
+    sam3aFreeFieldList(rep);
+    if (conn->aio.udata != NULL) {
+      void (*cbComplete)(Sam3AConnection *conn) = conn->aio.udata;
+      //
+      cbComplete(conn);
+    }
+  } else {
+    sam3aFreeFieldList(rep);
+    connError(conn, NULL);
+  }
+}
+
+
+static int sam3aConnStartHandshake (Sam3AConnection *conn, void (*cbComplete)(Sam3AConnection *conn)) {
+  if (cbComplete != NULL) conn->aio.udata = cbComplete;
+  if (aioConnSendCmdWaitReply(conn, aioConnHelloChecker, "%s\n", "HELLO VERSION MIN=3.0 MAX=3.0") < 0) return -1;
+  return 0;
+}
+
+
+static void aioConnConnected (Sam3AConnection *conn) {
+  int res;
+  socklen_t len = sizeof(res);
+  //
+  if (getsockopt(conn->fd, SOL_SOCKET, SO_ERROR, &res, &len) == 0 && res == 0) {
+    // ok, connected
+    if (sam3aConnStartHandshake(conn, NULL) < 0) connError(conn, NULL);
+  } else {
+    // connection error
+    connError(conn, "CONNECTION_ERROR");
+  }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+static void aioConnConnectChecker (Sam3AConnection *conn) {
+  SAMFieldList *rep = sam3aParseReply(conn->aio.data);
+  //
+  if (rep == NULL) { connError(conn, NULL); return; }
+  if (!sam3aIsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
+    const char *v = sam3aFindField(rep, "RESULT");
+    //
+    connError(conn, v);
+    sam3aFreeFieldList(rep);
+  } else {
+    // no error
+    sam3aFreeFieldList(rep);
+    conn->callDisconnectCB = 1;
+    if (conn->cb.cbConnected != NULL) conn->cb.cbConnected(conn);
+    // indicate that we are ready for new data
+    if (sam3aIsActiveConnection(conn) && conn->cb.cbSent != NULL) conn->cb.cbSent(conn);
+  }
+}
+
+
+// handshake for SESSION CREATE complete
+static void aioConConnectHandshacked (Sam3AConnection *conn) {
+  if (aioConnSendCmdWaitReply(conn, aioConnConnectChecker, "STREAM CONNECT ID=%s DESTINATION=%s\n",
+                              conn->ses->channel, conn->destkey) < 0) {
+    connError(conn, "MEMORY_ERROR");
+  }
+}
+
+
+Sam3AConnection *sam3aStreamConnectEx (Sam3ASession *ses, const Sam3AConnectionCallbacks *cb, const char *destkey,
+  int timeoutms)
+{
+  if (sam3aIsActiveSession(ses) && ses->type == SAM3A_SESSION_STREAM &&
+      destkey != NULL && strlen(destkey) == SAM3A_PUBKEY_SIZE) {
+    Sam3AConnection *conn = calloc(1, sizeof(Sam3AConnection));
+    //
+    if (conn == NULL) return NULL;
+    if (cb != NULL) conn->cb = *cb;
+    strcpy(conn->destkey, destkey);
+    conn->timeoutms = timeoutms;
+    //
+    conn->aio.udata = aioConConnectHandshacked;
+    conn->cbAIOProcessorW = aioConnConnected;
+    if ((conn->fd = sam3aConnect(ses->ip, ses->port, NULL)) < 0) goto error;
+    //
+    conn->ses = ses;
+    conn->next = ses->connlist;
+    ses->connlist = conn;
+    return conn; // ok, connection process initiated
+error:
+    if (conn->fd >= 0) sam3aDisconnect(conn->fd);
+    memset(conn, 0, sizeof(Sam3AConnection));
+    free(conn);
+  }
+  return NULL;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
 int sam3aCancelConnection (Sam3AConnection *conn) {
   if (conn != NULL) {
     connDisconnect(conn);
@@ -1097,6 +1267,7 @@ int sam3aCloseConnection (Sam3AConnection *conn) {
         break;
       }
     }
+    if (conn->params != NULL) { free(conn->params); conn->params = NULL; }
     memset(conn, 0, sizeof(Sam3AConnection));
     free(conn);
   }
@@ -1106,14 +1277,31 @@ int sam3aCloseConnection (Sam3AConnection *conn) {
 
 ////////////////////////////////////////////////////////////////////////////////
 int sam3aAddSessionToFDS (Sam3ASession *ses, int maxfd, fd_set *rds, fd_set *wrs) {
-  if (ses != NULL && ses->fd >= 0 && !ses->cancelled) {
-    if (rds != NULL && ses->cbAIOProcessorR != NULL) {
-      if (maxfd < ses->fd) maxfd = ses->fd;
-      FD_SET(ses->fd, rds);
-    }
-    if (wrs != NULL && ses->cbAIOProcessorW != NULL) {
-      if (maxfd < ses->fd) maxfd = ses->fd;
-      FD_SET(ses->fd, wrs);
+  if (ses != NULL) {
+    if (sam3aIsActiveSession(ses)) {
+      if (rds != NULL && ses->cbAIOProcessorR != NULL) {
+        if (maxfd < ses->fd) maxfd = ses->fd;
+        FD_SET(ses->fd, rds);
+      }
+      //
+      if (wrs != NULL && ses->cbAIOProcessorW != NULL) {
+        if (maxfd < ses->fd) maxfd = ses->fd;
+        FD_SET(ses->fd, wrs);
+      }
+      //
+      for (Sam3AConnection *c = ses->connlist; c != NULL; c = c->next) {
+        if (sam3aIsActiveConnection(c)) {
+          if (rds != NULL && c->cbAIOProcessorR != NULL) {
+            if (maxfd < c->fd) maxfd = c->fd;
+            FD_SET(c->fd, rds);
+          }
+          //
+          if (wrs != NULL && c->cbAIOProcessorW != NULL) {
+            if (maxfd < c->fd) maxfd = c->fd;
+            FD_SET(c->fd, wrs);
+          }
+        }
+      }
     }
     return maxfd;
   }
@@ -1123,8 +1311,13 @@ int sam3aAddSessionToFDS (Sam3ASession *ses, int maxfd, fd_set *rds, fd_set *wrs
 
 
 void sam3aProcessSessionIO (Sam3ASession *ses, fd_set *rds, fd_set *wrs) {
-  if (ses != NULL) {
+  if (sam3aIsActiveSession(ses)) {
     if (ses->fd >= 0 && !ses->cancelled && ses->cbAIOProcessorR != NULL && rds != NULL && FD_ISSET(ses->fd, rds)) ses->cbAIOProcessorR(ses);
     if (ses->fd >= 0 && !ses->cancelled && ses->cbAIOProcessorW != NULL && wrs != NULL && FD_ISSET(ses->fd, wrs)) ses->cbAIOProcessorW(ses);
+    //
+    for (Sam3AConnection *c = ses->connlist; c != NULL; c = c->next) {
+      if (c->fd >= 0 && !c->cancelled && c->cbAIOProcessorR != NULL && rds != NULL && FD_ISSET(c->fd, rds)) c->cbAIOProcessorR(c);
+      if (c->fd >= 0 && !c->cancelled && c->cbAIOProcessorW != NULL && wrs != NULL && FD_ISSET(c->fd, wrs)) c->cbAIOProcessorW(c);
+    }
   }
 }

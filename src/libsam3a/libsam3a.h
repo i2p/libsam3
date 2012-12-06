@@ -22,6 +22,13 @@ extern "C" {
 
 
 ////////////////////////////////////////////////////////////////////////////////
+/*
+ * TODO:
+ *   [.] block sam3aClose*() in callbacks
+ */
+
+
+////////////////////////////////////////////////////////////////////////////////
 extern int libsam3a_debug;
 
 
@@ -62,7 +69,7 @@ typedef struct {
     void (*cbReplyCheckSes)(Sam3ASession *ses);
     void (*cbReplyCheckConn)(Sam3AConnection *conn);
   };
-} Sam3AAsyncIO;
+} Sam3AIO;
 
 
 typedef struct {
@@ -88,7 +95,7 @@ struct Sam3ASession {
   int port; // this will be changed to UDP port for DRAM/RAW (can be 0)
   Sam3AConnection *connlist; // list of opened connections
   // for async i/o
-  Sam3AAsyncIO aio;
+  Sam3AIO aio;
   void (*cbAIOProcessorR) (Sam3ASession *ses); // internal
   void (*cbAIOProcessorW) (Sam3ASession *ses); // internal
   int callDisconnectCB;
@@ -120,10 +127,12 @@ struct Sam3AConnection {
   char destkey[SAM3A_PUBKEY_SIZE+1]; // (asciiz)
   char error[32]; // (asciiz)
   // for async i/o
-  Sam3AAsyncIO aio;
+  Sam3AIO aio;
   void (*cbAIOProcessorR) (Sam3AConnection *ct); // internal
   void (*cbAIOProcessorW) (Sam3AConnection *ct); // internal
   int callDisconnectCB;
+  char *params; // will be cleared only by sam3aCloseConnection()
+  int timeoutms;
   //
   Sam3AConnectionCallbacks cb;
   void *udata;
@@ -161,13 +170,13 @@ extern int sam3aIsActiveConnection (const Sam3AConnection *conn);
  * if result==0: ok, all 'ses' fields are filled
  * TODO: don't clear 'error' field on error (and set it to something meaningful)
  */
-extern int sam3aCreateAsyncSessionEx (Sam3ASession *ses, const Sam3ASessionCallbacks *cb,
+extern int sam3aCreateSessionEx (Sam3ASession *ses, const Sam3ASessionCallbacks *cb,
   const char *hostname, int port, const char *privkey, Sam3ASessionType type, const char *params, int timeoutms);
 
-static inline int sam3aCreateAsyncSession (Sam3ASession *ses, const Sam3ASessionCallbacks *cb,
+static inline int sam3aCreateSession (Sam3ASession *ses, const Sam3ASessionCallbacks *cb,
   const char *hostname, int port, const char *privkey, Sam3ASessionType type)
 {
-  return sam3aCreateAsyncSessionEx(ses, cb, hostname, port, privkey, type, NULL, -1);
+  return sam3aCreateSessionEx(ses, cb, hostname, port, privkey, type, NULL, -1);
 }
 
 /*
@@ -190,7 +199,12 @@ extern int sam3aCancelSession (Sam3ASession *ses);
  * returns <0 on error
  * sets ses->error on memory or socket creation error
  */
-extern Sam3AConnection *sam3aStreamConnect (Sam3ASession *ses, const Sam3AConnectionCallbacks *cb, const char *destkey);
+extern Sam3AConnection *sam3aStreamConnectEx (Sam3ASession *ses, const Sam3AConnectionCallbacks *cb, const char *destkey,
+  int timeoutms);
+
+static inline Sam3AConnection *sam3aStreamConnect (Sam3ASession *ses, const Sam3AConnectionCallbacks *cb, const char *destkey) {
+  return sam3aStreamConnectEx(ses, cb, destkey, -1);
+}
 
 /*
  * accepts stream connection and sets 'destkey'
@@ -200,7 +214,11 @@ extern Sam3AConnection *sam3aStreamConnect (Sam3ASession *ses, const Sam3AConnec
  * sets ses->error on error
  * note that there is no timeouts for now, but you can use sam3atcpSetTimeout*()
  */
-extern Sam3AConnection *sam3aStreamAccept (Sam3ASession *ses, const Sam3AConnectionCallbacks *cb);
+extern Sam3AConnection *sam3aStreamAcceptEx (Sam3ASession *ses, const Sam3AConnectionCallbacks *cb, int timeoutms);
+
+static inline Sam3AConnection *sam3aStreamAccept (Sam3ASession *ses, const Sam3AConnectionCallbacks *cb) {
+  return sam3aStreamAcceptEx(ses, cb, -1);
+}
 
 /*
  * close SAM connection, remove it from session and free memory
