@@ -713,6 +713,7 @@ int sam3CloseSession (Sam3Session *ses) {
       sam3CloseConnectionInternal(c);
       free(c);
     }
+    if (ses->fwd_fd >= 0) sam3tcpDisconnect(ses->fwd_fd);
     if (ses->fd >= 0) sam3tcpDisconnect(ses->fd);
     memset(ses, 0, sizeof(Sam3Session));
     ses->fd = -1;
@@ -731,6 +732,7 @@ int sam3CreateSession (Sam3Session *ses, const char *hostname, int port, const c
     //
     memset(ses, 0, sizeof(Sam3Session));
     ses->fd = -1;
+    ses->fwd_fd = -1;
     //
     if (privkey != NULL && strlen(privkey) != SAM3_PRIVKEY_SIZE) goto error;
     if ((int)type < 0 || (int)type > 2) goto error;
@@ -861,6 +863,33 @@ error:
     return NULL;
   }
   return NULL;
+}
+
+
+int *sam3StreamForward (Sam3Session *ses, const char *hostname, int port) {
+  if (ses != NULL) {
+    SAMFieldList *rep = NULL;
+    //
+    if (ses->type != SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return -1; }
+    if (ses->fd < 0) { strcpyerr(ses, "INVALID_SESSION"); return -1; }
+    if (ses->fwd_fd >= 0) { strcpyerr(ses, "DUPLICATE_FORWARD"); return -1; }
+    if ((ses->fwd_fd = sam3HandshakeIP(ses->ip, ses->port)) < 0) { strcpyerr(ses, "IO_ERROR_SK"); goto error; }
+    if (sam3tcpPrintf(ses->fwd_fd, "STREAM FORWARD ID=%s PORT=%d HOST=%s SILENT=true\n", ses->channel, port, hostname) < 0) { strcpyerr(ses, "IO_ERROR_PF"); goto error; }
+    if ((rep = sam3ReadReply(ses->fwd_fd)) == NULL) { strcpyerr(ses, "IO_ERROR_RP"); goto error; }
+    if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
+      const char *v = sam3FindField(rep, "RESULT");
+      //
+      strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR_RES"));
+      goto error;
+    }
+    sam3FreeFieldList(rep);
+    strcpyerr(ses, NULL);
+    return 0;
+error:
+    if (rep != NULL) sam3FreeFieldList(rep);
+    return -1;
+  }
+  return -1;
 }
 
 

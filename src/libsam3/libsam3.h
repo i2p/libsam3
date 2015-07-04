@@ -122,6 +122,7 @@ typedef struct Sam3Session {
   uint32_t ip;
   int port; // this will be changed to UDP port for DRAM/RAW (can be 0)
   struct Sam3Connection *connlist; // list of opened connections
+  int fwd_fd;
 } Sam3Session;
 
 
@@ -174,6 +175,15 @@ extern Sam3Connection *sam3StreamConnect (Sam3Session *ses, const char *destkey)
  * note that there is no timeouts for now, but you can use sam3tcpSetTimeout*()
  */
 extern Sam3Connection *sam3StreamAccept (Sam3Session *ses);
+
+/*
+ * sets up forwarding stream connection
+ * returns <0 on error, 0 on ok
+ * you still have to call sam3CloseSession() on failure
+ * sets ses->error on error
+ * note that there is no timeouts for now, but you can use sam3tcpSetTimeout*()
+ */
+extern int *sam3StreamForward (Sam3Session *ses, const char *hostname, int port);
 
 /*
  * close SAM connection
