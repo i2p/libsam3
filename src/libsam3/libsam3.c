@@ -874,7 +874,7 @@ int *sam3StreamForward (Sam3Session *ses, const char *hostname, int port) {
     if (ses->fd < 0) { strcpyerr(ses, "INVALID_SESSION"); return -1; }
     if (ses->fwd_fd >= 0) { strcpyerr(ses, "DUPLICATE_FORWARD"); return -1; }
     if ((ses->fwd_fd = sam3HandshakeIP(ses->ip, ses->port)) < 0) { strcpyerr(ses, "IO_ERROR_SK"); goto error; }
-    if (sam3tcpPrintf(ses->fwd_fd, "STREAM FORWARD ID=%s PORT=%d HOST=%s SILENT=true\n", ses->channel, port, hostname) < 0) { strcpyerr(ses, "IO_ERROR_PF"); goto error; }
+    if (sam3tcpPrintf(ses->fwd_fd, "STREAM FORWARD ID=%s PORT=%d HOST=%s\n", ses->channel, port, hostname) < 0) { strcpyerr(ses, "IO_ERROR_PF"); goto error; }
     if ((rep = sam3ReadReply(ses->fwd_fd)) == NULL) { strcpyerr(ses, "IO_ERROR_RP"); goto error; }
     if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
       const char *v = sam3FindField(rep, "RESULT");
