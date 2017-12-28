@@ -751,7 +751,7 @@ int sam3CreateSession (Sam3Session *ses, const char *hostname, int port, const c
     if ((rep = sam3ReadReply(ses->fd)) == NULL) goto error;
     if (!sam3IsGoodReply(rep, "SESSION", "STATUS", "RESULT", "OK") ||
         (v = sam3FindField(rep, "DESTINATION")) == NULL || strlen(v) != SAM3_PRIVKEY_SIZE) {
-      if (libsam3_debug) fprintf(stderr, "sam3CreateSession: invalid reply (%d)...\n", (v != NULL ? strlen(v) : -1));
+      if (libsam3_debug) fprintf(stderr, "sam3CreateSession: invalid reply (%ld)...\n", (v != NULL ? strlen(v) : -1));
       if (libsam3_debug) sam3DumpFieldList(rep);
       sam3FreeFieldList(rep);
       goto error;
@@ -765,7 +765,7 @@ int sam3CreateSession (Sam3Session *ses, const char *hostname, int port, const c
     v = NULL;
     if (!sam3IsGoodReply(rep, "NAMING", "REPLY", "RESULT", "OK") ||
         (v = sam3FindField(rep, "VALUE")) == NULL || strlen(v) != SAM3_PUBKEY_SIZE) {
-      if (libsam3_debug) fprintf(stderr, "sam3CreateSession: invalid NAMING reply (%d)...\n", (v != NULL ? strlen(v) : -1));
+      if (libsam3_debug) fprintf(stderr, "sam3CreateSession: invalid NAMING reply (%ld)...\n", (v != NULL ? strlen(v) : -1));
       if (libsam3_debug) sam3DumpFieldList(rep);
       sam3FreeFieldList(rep);
       goto error;
@@ -866,7 +866,7 @@ error:
 }
 
 
-int *sam3StreamForward (Sam3Session *ses, const char *hostname, int port) {
+int sam3StreamForward (Sam3Session *ses, const char *hostname, int port) {
   if (ses != NULL) {
     SAMFieldList *rep = NULL;
     //

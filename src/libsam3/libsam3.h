@@ -183,7 +183,7 @@ extern Sam3Connection *sam3StreamAccept (Sam3Session *ses);
  * sets ses->error on error
  * note that there is no timeouts for now, but you can use sam3tcpSetTimeout*()
  */
-extern int *sam3StreamForward (Sam3Session *ses, const char *hostname, int port);
+extern int sam3StreamForward (Sam3Session *ses, const char *hostname, int port);
 
 /*
  * close SAM connection
