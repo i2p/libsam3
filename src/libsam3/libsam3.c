@@ -150,7 +150,7 @@ int sam3tcpDisconnect (int fd) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // <0: error; 0: ok
-int sam3tcpSend (int fd, const void *buf, int bufSize) {
+int sam3tcpSend (int fd, const void *buf, size_t bufSize) {
   const char *c = (const char *)buf;
   //
   if (fd < 0 || (buf == NULL && bufSize > 0)) return -1;
@@ -170,9 +170,9 @@ int sam3tcpSend (int fd, const void *buf, int bufSize) {
 
 /* <0: received (-res) bytes; read error */
 /* can return less that requesten bytes even if `allowPartial` is 0 when connection is closed */
-int sam3tcpReceiveEx (int fd, void *buf, int bufSize, int allowPartial) {
+ssize_t sam3tcpReceiveEx (int fd, void *buf, size_t bufSize, int allowPartial) {
   char *c = (char *)buf;
-  int total = 0;
+  ssize_t total = 0;
   //
   if (fd < 0 || (buf == NULL && bufSize > 0)) return -1;
   //
@@ -192,7 +192,7 @@ int sam3tcpReceiveEx (int fd, void *buf, int bufSize, int allowPartial) {
 }
 
 
-int sam3tcpReceive (int fd, void *buf, int bufSize) {
+ssize_t sam3tcpReceive (int fd, void *buf, size_t bufSize) {
   return sam3tcpReceiveEx(fd, buf, bufSize, 0);
 }
 
@@ -229,7 +229,7 @@ __attribute__((format(printf,2,3))) int sam3tcpPrintf (int fd, const char *fmt, 
 }
 
 
-int sam3tcpReceiveStr (int fd, char *dest, int maxSize) {
+int sam3tcpReceiveStr (int fd, char *dest, size_t maxSize) {
   char *d = dest;
   //
   if (maxSize < 1 || fd < 0 || dest == NULL) return -1;
@@ -269,7 +269,8 @@ int sam3tcpReceiveStr (int fd, char *dest, int maxSize) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-int sam3udpSendToIP (uint32_t ip, int port, const void *buf, int bufSize) {
+int sam3udpSendToIP (uint32_t ip, int port, const void *buf, size_t bufSize) {
+  // TODO: ipv6
   struct sockaddr_in addr;
   int fd, res;
   //
@@ -304,9 +305,9 @@ int sam3udpSendToIP (uint32_t ip, int port, const void *buf, int bufSize) {
 }
 
 
-int sam3udpSendTo (const char *hostname, int port, const void *buf, int bufSize, uint32_t *ip) {
+int sam3udpSendTo (const char *hostname, int port, const void *buf, size_t bufSize, uint32_t *ip) {
   struct hostent *host = NULL;
-  //
+  // TODO: ipv6
   if (buf == NULL || bufSize < 1) return -1;
   if (hostname == NULL || !hostname[0]) hostname = "localhost";
   if (port < 1 || port > 65535) port = 7655;
@@ -557,14 +558,16 @@ static uint32_t genSeed (void) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-int sam3GenChannelName (char *dest, int minlen, int maxlen) {
+size_t sam3GenChannelName (char *dest, size_t minlen, size_t maxlen) {
   BJRandCtx rc;
-  int len;
+  size_t len;
+  size_t retlen;
   //
   if (dest == NULL || minlen < 1 || maxlen < minlen || minlen > 65536 || maxlen > 65536) return -1;
   bjprngInit(&rc, genSeed());
   len = minlen+(bjprngRand(&rc)%(maxlen-minlen+1));
-  while (len-- > 0) {
+  retlen = len;
+  while (len--) {
     int ch = bjprngRand(&rc)%64;
     //
     if (ch >= 0 && ch < 10) ch += '0';
@@ -576,7 +579,7 @@ int sam3GenChannelName (char *dest, int minlen, int maxlen) {
     *dest++ = ch;
   }
   *dest++ = 0;
-  return 0;
+  return retlen;
 }
 
 
@@ -893,7 +896,7 @@ error:
 }
 
 
-int sam3DatagramSend (Sam3Session *ses, const char *destkey, const void *buf, int bufsize) {
+int sam3DatagramSend (Sam3Session *ses, const char *destkey, const void *buf, size_t bufsize) {
   if (ses != NULL) {
     char *dbuf;
     int res, dbufsz;
@@ -915,11 +918,11 @@ int sam3DatagramSend (Sam3Session *ses, const char *destkey, const void *buf, in
 }
 
 
-int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize) {
+ssize_t sam3DatagramReceive (Sam3Session *ses, void *buf, size_t bufsize) {
   if (ses != NULL) {
     SAMFieldList *rep;
     const char *v;
-    int size = 0;
+    ssize_t size = 0;
     //
     if (ses->type == SAM3_SESSION_STREAM) { strcpyerr(ses, "INVALID_SESSION_TYPE"); return -1; }
     if (ses->fd < 0) { strcpyerr(ses, "INVALID_SESSION"); return -1; }
@@ -931,7 +934,7 @@ int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize) {
       return -1;
     }
     //
-    if ((v = sam3FindField(rep, "DESTINATION")) != NULL && strlen(v) == SAM3_PUBKEY_SIZE) strcpy(ses->destkey, v);
+    if ((v = sam3FindField(rep, "DESTINATION")) != NULL && strlen(v) == SAM3_PUBKEY_SIZE) strncpy(ses->destkey, v, sizeof(ses->destkey));
     v = sam3FindField(rep, "SIZE"); // we have this field -- for sure
     if (!v[0] || !isdigit(*v)) {
       strcpyerr(ses, "I2P_ERROR_SIZE");
@@ -966,11 +969,11 @@ int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize) {
 ////////////////////////////////////////////////////////////////////////////////
 // output 8 bytes for every 5 input
 // return size or <0 on error
-int sam3Base32Encode (char *dest, const void *srcbuf, int srcsize) {
+ssize_t sam3Base32Encode (char *dest, size_t destsz, const void *srcbuf, size_t srcsize) {
   if (dest != NULL && srcbuf != NULL && srcsize >= 0) {
     static const char *const b32chars = "abcdefghijklmnopqrstuvwxyz234567=";
     const unsigned char *src = (const unsigned char *)srcbuf;
-    int destsize = 0;
+    ssize_t destsize = 0;
     //
     while (srcsize > 0) {
       int blksize = (srcsize < 5 ? srcsize : 5);
@@ -1008,10 +1011,16 @@ int sam3Base32Encode (char *dest, const void *srcbuf, int srcsize) {
         case 5: break;
       }
       // output
-      for (int f = 0; f < 8; ++f) *dest++ = b32chars[n[f]];
+      if (destsize + 8 <= destsz)
+      {
+        for (int f = 0; f < 8; ++f) *dest++ = b32chars[n[f]];
+      }
       destsize += 8;
     }
-    *dest++ = 0; // make valid asciiz string
+    if(destsize <= destsz)
+    {
+      *dest++ = 0; // make valid asciiz string
+    }
     return destsize;
   }
   return -1;
@@ -1021,7 +1030,7 @@ int sam3Base32Encode (char *dest, const void *srcbuf, int srcsize) {
 ////////////////////////////////////////////////////////////////////////////////
 // output 8 bytes for every 5 input
 // return size or <0 on error
-int sam3Base32Decode (char *dest, const void *srcbuf, int srcsize) {
+ssize_t sam3Base32Decode (char *dest, size_t destsz, const void *srcbuf, size_t srcsize) {
   if (dest != NULL && srcbuf != NULL && srcsize >= 0) {
     static const char *const b32chars = "abcdefghijklmnopqrstuvwxyz234567=";
     const unsigned char *src = (const unsigned char *)srcbuf;
@@ -1063,10 +1072,16 @@ int sam3Base32Decode (char *dest, const void *srcbuf, int srcsize) {
         case 5: break;
       }
       // output
-      for (int f = 0; f < 8; ++f) *dest++ = b32chars[n[f]];
+      if ( destsize + 8 <= destsz)
+      {
+        for (int f = 0; f < 8; ++f) *dest++ = b32chars[n[f]];
+      }
       destsize += 8;
     }
-    *dest++ = 0; // make valid asciiz string
+    if(destsize <= destsz)
+    {
+      *dest++ = 0; // make valid asciiz string
+    }
     return destsize;
   }
   return -1;

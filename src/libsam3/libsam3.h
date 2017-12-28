@@ -10,6 +10,7 @@
 #define LIBSAM3_H
 
 #include <stdint.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,22 +48,22 @@ extern int sam3tcpSetTimeoutReceive (int fd, int timeoutms);
 
 /* <0: error; 0: ok */
 /* sends the whole buffer */
-extern int sam3tcpSend (int fd, const void *buf, int bufSize);
+extern int sam3tcpSend (int fd, const void *buf, size_t bufSize);
 
 /* <0: received (-res) bytes; read error */
 /* can return less that requesten bytes even if `allowPartial` is 0 when connection is closed */
-extern int sam3tcpReceiveEx (int fd, void *buf, int bufSize, int allowPartial);
+extern ssize_t sam3tcpReceiveEx (int fd, void *buf, size_t bufSize, int allowPartial);
 
-extern int sam3tcpReceive (int fd, void *buf, int bufSize);
+extern ssize_t sam3tcpReceive (int fd, void *buf, size_t bufSize);
 
 extern int sam3tcpPrintf (int fd, const char *fmt, ...) __attribute__((format(printf,2,3)));
 
-extern int sam3tcpReceiveStr (int fd, char *dest, int maxSize);
+extern int sam3tcpReceiveStr (int fd, char *dest, size_t maxSize);
 
 /* pass NULL for 'localhost' and 0 for 7655 */
 /* 'ip': host IP; can be NULL */
-extern int sam3udpSendTo (const char *hostname, int port, const void *buf, int bufSize, uint32_t *ip);
-extern int sam3udpSendToIP (uint32_t ip, int port, const void *buf, int bufSize);
+extern int sam3udpSendTo (const char *hostname, int port, const void *buf, size_t bufSize, uint32_t *ip);
+extern int sam3udpSendToIP (uint32_t ip, int port, const void *buf, size_t bufSize);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,11 +115,11 @@ typedef enum {
 typedef struct Sam3Session {
   Sam3SessionType type;
   int fd;
-  char privkey[SAM3_PRIVKEY_SIZE+1]; // (asciiz)
-  char pubkey[SAM3_PUBKEY_SIZE+1]; // (asciiz)
-  char channel[66]; // (asciiz)
+  char privkey[SAM3_PRIVKEY_SIZE+1]; // destination private key (asciiz)
+  char pubkey[SAM3_PUBKEY_SIZE+1]; // destination public key (asciiz)
+  char channel[66]; // name of this sam session (asciiz)
   char destkey[SAM3_PUBKEY_SIZE+1]; // for DGRAM sessions (asciiz)
-  char error[32]; // (asciiz)
+  char error[32]; // error message (asciiz)
   uint32_t ip;
   int port; // this will be changed to UDP port for DRAM/RAW (can be 0)
   struct Sam3Connection *connlist; // list of opened connections
@@ -130,8 +131,8 @@ typedef struct Sam3Connection {
   Sam3Session *ses;
   struct Sam3Connection *next;
   int fd;
-  char destkey[SAM3_PUBKEY_SIZE+1]; // (asciiz)
-  char error[32]; // (asciiz)
+  char destkey[SAM3_PUBKEY_SIZE+1]; // remote destination public key (asciiz)
+  char error[32]; // error message (asciiz)
 } Sam3Connection;
 
 
@@ -223,7 +224,7 @@ extern int sam3NameLookup (Sam3Session *ses, const char *hostname, int port, con
  * sets ses->error on error
  * don't send datagrams bigger than 31KB!
  */
-extern int sam3DatagramSend (Sam3Session *ses, const char *destkey, const void *buf, int bufsize);
+extern int sam3DatagramSend (Sam3Session *ses, const char *destkey, const void *buf, size_t bufsize);
 
 /*
  * receives datagram and sets 'destkey' to source pubkey (if not RAW)
@@ -232,20 +233,22 @@ extern int sam3DatagramSend (Sam3Session *ses, const char *destkey, const void *
  * sets ses->error on error
  * will necer receive datagrams bigger than 31KB (32KB for RAW)
  */
-extern int sam3DatagramReceive (Sam3Session *ses, void *buf, int bufsize);
+extern ssize_t sam3DatagramReceive (Sam3Session *ses, void *buf, size_t bufsize);
 
-
-////////////////////////////////////////////////////////////////////////////////
-extern int sam3GenChannelName (char *dest, int minlen, int maxlen);
+/*
+ * generate random sam channel name 
+ * return the size of the string
+ */
+extern size_t sam3GenChannelName (char *dest, size_t minlen, size_t maxlen);
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // NOT including '\0' terminator
-static inline int sam3Base32EncodedLength (int size) { return (((size+5-1)/5)*8); }
+static inline size_t sam3Base32EncodedLength (size_t size) { return (((size+5-1)/5)*8); }
 
 // output 8 bytes for every 5 input
 // return size or <0 on error
-extern int sam3Base32Encode (char *dest, const void *srcbuf, int srcsize);
+extern ssize_t sam3Base32Encode (char *dest, size_t destsz, const void *srcbuf, size_t srcsize);
 
 
 #ifdef __cplusplus
