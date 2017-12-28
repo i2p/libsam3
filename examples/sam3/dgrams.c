@@ -20,75 +20,93 @@
 
 int main (int argc, char *argv[]) {
   Sam3Session ses;
-  char privkey[1024], pubkey[1024], *buf = NULL;
+  char privkey[1024], pubkey[1024], buf[33*1024];
+
+  /** quit command */
+  const char * quitstr = "quit";
+  const size_t quitlen = strlen(quistr);
+
+  /** reply response */
+  const char * replystr = "reply: ";
+  const size_t replylen = strlen(replystr);
+  
+  
   FILE *fl;
   //
   //libsam3_debug = 1;
   //
+  
+  /** generate new destination keypair */
   printf("generating keys...\n");
   if (sam3GenerateKeys(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT) < 0) {
     fprintf(stderr, "FATAL: can't generate keys\n");
     return 1;
   }
-  //
-  strcpy(pubkey, ses.pubkey);
-  strcpy(privkey, ses.privkey);
-  //
+  /** copy keypair into local buffer */
+  strncpy(pubkey, ses.pubkey, sizeof(pubkey));
+  strncpy(privkey, ses.privkey, sizeof(privkey));
+  /** create sam session */
   printf("creating session...\n");
   if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, privkey, SAM3_SESSION_DGRAM, NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
-  //
+  /** make sure we have the right destination */
+  // FIXME: probably not needed
   if (strcmp(pubkey, ses.pubkey) != 0) {
-    fprintf(stderr, "FATAL: internal error\n");
+    fprintf(stderr, "FATAL: destination keys don't match\n");
     sam3CloseSession(&ses);
     return 1;
   }
-  //
+  /** print destination to stdout */
   printf("PUB KEY\n=======\n%s\n=======\n", ses.pubkey);
   if ((fl = fopen(KEYFILE, "wb")) != NULL) {
+    /** write public key to keyfile */
     fwrite(pubkey, strlen(pubkey), 1, fl);
     fclose(fl);
   }
-  //
-  buf = malloc(33*1024);
-  // now listen for UDP packets
+
+  /* now listen for UDP packets */
   printf("starting main loop...\n");
   for (;;) {
+    /** save replylen bytes for out reply at begining */
+    char * datagramBuf = buf + replylen;
+    const size_t datagramMaxLen = sizeof(buf) - replyLen;
     int sz, isquit;
-    //
     printf("waiting for datagram...\n");
-    if ((sz = sam3DatagramReceive(&ses, buf+4, 33*1024-4)) < 0) {
+    /** blocks until we get a UDP packet */
+    if ((sz = sam3DatagramReceive(&ses, datagramBuf, datagarmMaxLen) < 0)) {
       fprintf(stderr, "ERROR: %s\n", ses.error);
       goto error;
     }
-    buf[sz+4] = 0;
-    //
+    /** ensure null terminated string */
+    datagramBuf[sz] = 0;
+    /** print out datagram payload to user */
     printf("FROM\n====\n%s\n====\n", ses.destkey);
     printf("SIZE=%d\n", sz);
-    printf("data: [%s]\n", buf+4);
-    isquit = (sz == 4 && memcmp(buf+4, "quit", 4) == 0);
-    // echo datagram
-    memcpy(buf, "re: ", 4);
-    if (sam3DatagramSend(&ses, ses.destkey, buf, sz+4) < 0) {
+    printf("data: [%s]\n", datagramBuf);
+    /** check for "quit" */
+    isquit = (sz == quitlen && memcmp(datagramBuf, quitstr, quitlen) == 0);
+    /** echo datagram back to sender with "reply: " at the beginning */
+    memcpy(buf, replystr, replylen);
+      
+    if (sam3DatagramSend(&ses, ses.destkey, buf, sz+replylen) < 0) {
       fprintf(stderr, "ERROR: %s\n", ses.error);
       goto error;
     }
-    //
+    /** if we got a quit command wait for 10 seconds and break out of the mainloop */
     if (isquit) {
       printf("shutting down...\n");
-      sleep(10); // let dgram reach it's destination
+      sleep(10); /* let dgram reach it's destination */
       break;
     }
   }
-  //
-  if (buf != NULL) free(buf);
+  /** close session and delete keyfile */
   sam3CloseSession(&ses);
   unlink(KEYFILE);
   return 0;
 error:
-  if (buf != NULL) free(buf);
+  /** error case, close session, delete keyfile and return exit code 1 */
   sam3CloseSession(&ses);
   unlink(KEYFILE);
   return 1;
