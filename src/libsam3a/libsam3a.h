@@ -77,29 +77,30 @@ typedef struct {
   };
 } Sam3AIO;
 
-
+/** session callback functions */
 typedef struct {
-  void (*cbError) (Sam3ASession *ses);
-  void (*cbCreated) (Sam3ASession *ses); // successfull SESSION CREATE
-  void (*cbDisconnected) (Sam3ASession *ses); // or closed; will called only after cbCreated()
-  void (*cbDatagramRead) (Sam3ASession *ses, const void *buf, int bufsize); // got datagram; bufsize >= 0; destkey set
-  //
-  void (*cbDestroy) (Sam3ASession *ses); // fd already closed, but keys is not cleared
+  void (*cbError) (Sam3ASession *ses); /** called on error */
+  void (*cbCreated) (Sam3ASession *ses); /** called when we created the session */
+  void (*cbDisconnected) (Sam3ASession *ses); /* call when closed; will called only after cbCreated() */
+  void (*cbDatagramRead) (Sam3ASession *ses, const void *buf, int bufsize); /* called when we got a datagram; bufsize >= 0; destkey set */
+  void (*cbDestroy) (Sam3ASession *ses); /* called when fd is already closed, but keys is not cleared */
 } Sam3ASessionCallbacks;
 
 
 struct Sam3ASession {
-  Sam3ASessionType type;
-  int fd;
-  int cancelled; // fd was shutdown()ed, but not closed yet
-  char privkey[SAM3A_PRIVKEY_SIZE+1]; // (asciiz)
-  char pubkey[SAM3A_PUBKEY_SIZE+1]; // (asciiz)
-  char channel[66]; // (asciiz)
-  char destkey[SAM3A_PUBKEY_SIZE+1]; // for DGRAM sessions (asciiz)
-  char error[64]; // (asciiz)
-  uint32_t ip;
-  int port; // this will be changed to UDP port for DRAM/RAW (can be 0)
-  Sam3AConnection *connlist; // list of opened connections
+  Sam3ASessionType type; /** session type */
+  int fd; /** socket file descriptor */
+  int cancelled; /** fd was shutdown()ed, but not closed yet */
+  char privkey[SAM3A_PRIVKEY_SIZE+1]; /**  private key (asciiz) */
+  char pubkey[SAM3A_PUBKEY_SIZE+1]; /** public key (asciiz) */
+  char channel[66]; /** channel name (asciiz) */
+  char destkey[SAM3A_PUBKEY_SIZE+1]; /** for DGRAM sessions (asciiz) */
+  char error[64]; /** error message (asciiz) */
+  uint32_t ip; /** ipv4 address of sam api interface */
+  int port; /** UDP port for DRAM/RAW (can be 0) */
+  Sam3AConnection *connlist; /** list of opened connections */
+
+  /** begin internal members */
   // for async i/o
   Sam3AIO aio;
   void (*cbAIOProcessorR) (Sam3ASession *ses); // internal
@@ -107,31 +108,43 @@ struct Sam3ASession {
   int callDisconnectCB;
   char *params; // will be cleared only by sam3aCloseSession()
   int timeoutms;
-  //
+
+  /** end internal members */
+  
   Sam3ASessionCallbacks cb;
   void *udata;
 };
 
-
+/** connection callbacks for data sockets */
 typedef struct {
+  /** called on error */
   void (*cbError) (Sam3AConnection *ct);
-  void (*cbDisconnected) (Sam3AConnection *ct); // or closed; only after cbConnected()/cbAccepted(); note that force disconnect is ok
+  /** called when closed or only after cbConnected()/cbAccepted(); note that force disconnect is ok */
+  void (*cbDisconnected) (Sam3AConnection *ct);
+  /** called when connected */
   void (*cbConnected) (Sam3AConnection *ct);
-  void (*cbAccepted) (Sam3AConnection *ct); // will be called instead of cbConnected() for sam3aStreamAccept*(), destkey filled
-  void (*cbSent) (Sam3AConnection *ct); // data sent, can add new data; will be called after connect/accept
-  void (*cbRead) (Sam3AConnection *ct, const void *buf, int bufsize); // data read (bufsize is always > 0)
-  //
-  void (*cbDestroy) (Sam3AConnection *ct); // fd already closed, but keys is not cleared
+  /** called instead of cbConnected() for sam3aStreamAccept*(), destkey filled with remote destination */
+  void (*cbAccepted) (Sam3AConnection *ct);
+  /** send callback, data sent, can add new data; will be called after connect/accept */
+  void (*cbSent) (Sam3AConnection *ct);
+  /** read callback, data read from socket (bufsize is always > 0) */
+  void (*cbRead) (Sam3AConnection *ct, const void *buf, int bufsize);
+  /** fd already closed, but keys is not cleared */
+  void (*cbDestroy) (Sam3AConnection *ct);
 } Sam3AConnectionCallbacks;
 
 
 struct Sam3AConnection {
+  /** parent session */
   Sam3ASession *ses;
   Sam3AConnection *next;
+  /** file descriptor */
   int fd;
   int cancelled; // fd was shutdown()ed, but not closed yet
   char destkey[SAM3A_PUBKEY_SIZE+1]; // (asciiz)
   char error[32]; // (asciiz)
+
+  /** begin internal members */
   // for async i/o
   Sam3AIO aio;
   void (*cbAIOProcessorR) (Sam3AConnection *ct); // internal
@@ -139,8 +152,11 @@ struct Sam3AConnection {
   int callDisconnectCB;
   char *params; // will be cleared only by sam3aCloseConnection()
   int timeoutms;
-  //
+  /** end internal members */
+  
+  /** callbacks */
   Sam3AConnectionCallbacks cb;
+  /** user data */
   void *udata;
 };
 
