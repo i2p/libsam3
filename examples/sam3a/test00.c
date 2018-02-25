@@ -88,7 +88,7 @@ static void scbDestroy (Sam3ASession *ses) {
   fprintf(stderr, "\n===============================\nSESION_DESTROYED\n===============================\n");
 }
 
-
+/** callbacks for our SAM session */
 static const Sam3ASessionCallbacks scb = {
   .cbError = scbError,
   .cbCreated = scbCreated,
@@ -112,13 +112,13 @@ int main (int argc, char *argv[]) {
     fprintf(stderr, "FATAL: can't create main session!\n");
     return 1;
   }
-  //
+  // generate keys
   if (sam3aGenerateKeys(&skg, &scbKG, HOST, SAM3A_PORT_DEFAULT) < 0) {
     sam3aCloseSession(&ses);
     fprintf(stderr, "FATAL: can't create keygen session!\n");
     return 1;
   }
-  //
+  // do a name lookup for zzz.i2p
   if (sam3aNameLookup(&snr, &scbNR, HOST, SAM3A_PORT_DEFAULT, "zzz.i2p") < 0) {
     sam3aCloseSession(&skg);
     sam3aCloseSession(&ses);
