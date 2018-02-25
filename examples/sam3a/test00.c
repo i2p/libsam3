@@ -125,18 +125,21 @@ int main (int argc, char *argv[]) {
     fprintf(stderr, "FATAL: can't create name resolving session!\n");
     return 1;
   }
-  //
+  // while we have sessions ...
   while (sam3aIsActiveSession(&ses) || sam3aIsActiveSession(&snr) || sam3aIsActiveSession(&skg)) {
     fd_set rds, wrs;
     int res, maxfd = 0;
     struct timeval to;
-    //
+    // set up file descriptors for select()
     FD_ZERO(&rds);
     FD_ZERO(&wrs);
+    // obtain the maximum fd for select()
     if (sam3aIsActiveSession(&ses) && (maxfd = sam3aAddSessionToFDS(&ses, -1, &rds, &wrs)) < 0) break;
     if (sam3aIsActiveSession(&snr) && (maxfd = sam3aAddSessionToFDS(&snr, -1, &rds, &wrs)) < 0) break;
     if (sam3aIsActiveSession(&skg) && (maxfd = sam3aAddSessionToFDS(&skg, -1, &rds, &wrs)) < 0) break;
+    // set timeout to 1 second
     sam3ams2timeval(&to, 1000);
+    // call select()
     res = select(maxfd+1, &rds, &wrs, NULL, &to);
     if (res < 0) {
       if (errno == EINTR) continue;
@@ -144,17 +147,19 @@ int main (int argc, char *argv[]) {
       break;
     }
     if (res == 0) {
+      // idle, no activity
       fprintf(stdout, "."); fflush(stdout);
     } else {
+      // we have activity, process io
       if (sam3aIsActiveSession(&ses)) sam3aProcessSessionIO(&ses, &rds, &wrs);
       if (sam3aIsActiveSession(&snr)) sam3aProcessSessionIO(&snr, &rds, &wrs);
       if (sam3aIsActiveSession(&skg)) sam3aProcessSessionIO(&skg, &rds, &wrs);
     }
   }
-  //
+  // close seessions
   sam3aCloseSession(&ses);
   sam3aCloseSession(&skg);
   sam3aCloseSession(&snr);
-  //
+  // exit
   return 0;
 }
