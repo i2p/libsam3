@@ -21,9 +21,10 @@ int main (int argc, char *argv[]) {
     printf("usage: %s name [name...]\n", argv[0]);
     return 1;
   }
-  //
+  /** for each name in arguments ... */
   for (int n = 1; n < argc; ++n) {
     fprintf(stdout, "%s ... ", argv[n]); fflush(stdout);
+    /** do oneshot name lookup */
     if (sam3NameLookup(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, argv[n]) >= 0) {
       fprintf(stdout, "%s\n\n", ses.destkey);
     } else {

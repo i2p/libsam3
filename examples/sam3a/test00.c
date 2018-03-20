@@ -88,7 +88,7 @@ static void scbDestroy (Sam3ASession *ses) {
   fprintf(stderr, "\n===============================\nSESION_DESTROYED\n===============================\n");
 }
 
-
+/** callbacks for our SAM session */
 static const Sam3ASessionCallbacks scb = {
   .cbError = scbError,
   .cbCreated = scbCreated,
@@ -112,31 +112,34 @@ int main (int argc, char *argv[]) {
     fprintf(stderr, "FATAL: can't create main session!\n");
     return 1;
   }
-  //
+  // generate keys
   if (sam3aGenerateKeys(&skg, &scbKG, HOST, SAM3A_PORT_DEFAULT) < 0) {
     sam3aCloseSession(&ses);
     fprintf(stderr, "FATAL: can't create keygen session!\n");
     return 1;
   }
-  //
+  // do a name lookup for zzz.i2p
   if (sam3aNameLookup(&snr, &scbNR, HOST, SAM3A_PORT_DEFAULT, "zzz.i2p") < 0) {
     sam3aCloseSession(&skg);
     sam3aCloseSession(&ses);
     fprintf(stderr, "FATAL: can't create name resolving session!\n");
     return 1;
   }
-  //
+  // while we have sessions ...
   while (sam3aIsActiveSession(&ses) || sam3aIsActiveSession(&snr) || sam3aIsActiveSession(&skg)) {
     fd_set rds, wrs;
     int res, maxfd = 0;
     struct timeval to;
-    //
+    // set up file descriptors for select()
     FD_ZERO(&rds);
     FD_ZERO(&wrs);
+    // obtain the maximum fd for select()
     if (sam3aIsActiveSession(&ses) && (maxfd = sam3aAddSessionToFDS(&ses, -1, &rds, &wrs)) < 0) break;
     if (sam3aIsActiveSession(&snr) && (maxfd = sam3aAddSessionToFDS(&snr, -1, &rds, &wrs)) < 0) break;
     if (sam3aIsActiveSession(&skg) && (maxfd = sam3aAddSessionToFDS(&skg, -1, &rds, &wrs)) < 0) break;
+    // set timeout to 1 second
     sam3ams2timeval(&to, 1000);
+    // call select()
     res = select(maxfd+1, &rds, &wrs, NULL, &to);
     if (res < 0) {
       if (errno == EINTR) continue;
@@ -144,17 +147,19 @@ int main (int argc, char *argv[]) {
       break;
     }
     if (res == 0) {
+      // idle, no activity
       fprintf(stdout, "."); fflush(stdout);
     } else {
+      // we have activity, process io
       if (sam3aIsActiveSession(&ses)) sam3aProcessSessionIO(&ses, &rds, &wrs);
       if (sam3aIsActiveSession(&snr)) sam3aProcessSessionIO(&snr, &rds, &wrs);
       if (sam3aIsActiveSession(&skg)) sam3aProcessSessionIO(&skg, &rds, &wrs);
     }
   }
-  //
+  // close seessions
   sam3aCloseSession(&ses);
   sam3aCloseSession(&skg);
   sam3aCloseSession(&snr);
-  //
+  // exit
   return 0;
 }

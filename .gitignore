@@ -1,2 +1,3 @@
 *.o
 libsam3-tests
+*.a

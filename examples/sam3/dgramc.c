@@ -27,12 +27,10 @@
 int main (int argc, char *argv[]) {
   Sam3Session ses;
   char buf[1024];
-  char destkey[517]; // 516 chars + \0
+  char destkey[517] = {0}; // 516 chars + \0
   int sz;
   //
   //libsam3_debug = 1;
-  //
-  memset(destkey, 0, sizeof(destkey));
   //
   if (argc < 2) {
     FILE *fl = fopen(KEYFILE, "rb");
@@ -56,28 +54,30 @@ int main (int argc, char *argv[]) {
   //
 ok:
   printf("creating session...\n");
-  // create TRANSIENT session
+  /* create TRANSIENT session with temporary disposible destination */
   if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_DGRAM, NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
-  //
+  /* send datagram */
   printf("sending test datagram...\n");
   if (sam3DatagramSend(&ses, destkey, "test", 4) < 0) {
     fprintf(stderr, "ERROR: %s\n", ses.error);
     goto error;
   }
+  /** receive reply */
   if ((sz = sam3DatagramReceive(&ses, buf, sizeof(buf)-1)) < 0) {
     fprintf(stderr, "ERROR: %s\n", ses.error);
     goto error;
   }
+  /** null terminated string */
   buf[sz] = 0;
   printf("received: [%s]\n", buf);
   //
 #ifdef BIG
   {
     char *big = calloc(BIG+1024, sizeof(char));
-    //
+    /** generate random string */
     sam3GenChannelName(big, BIG+1023, BIG+1023);
     printf("sending BIG datagram...\n");
     if (sam3DatagramSend(&ses, destkey, big, BIG) < 0) {

@@ -9,17 +9,29 @@ TESTS := \
 	test/test.c \
 	test/libsam3/test_b32.c
 
-OBJS := ${SRCS:c=o} ${TESTS:c=o}
+LIB_OBJS := ${SRCS:.c=.o}
+TEST_OBJS := ${TESTS:.c=.o}
 
-.PHONY: check
+OBJS := ${LIB_OBJS} ${TEST_OBJS}
+
+LIB := libsam3.a
+
+
+all: build check
+
 check: libsam3-tests
 	./libsam3-tests
 
-libsam3-tests: ${OBJS}
+build: ${LIB}
+
+${LIB}: ${LIB_OBJS}
+	${AR} -sr ${LIB} ${LIB_OBJS}
+
+libsam3-tests: ${TEST_OBJS} ${LIB}
 	${CC} $^ -o $@
 
 clean:
-	rm -f libsam3-tests ${OBJS}
+	rm -f libsam3-tests ${LIB} ${OBJS}
 
 %.o: %.c Makefile
 	${CC} ${CFLAGS} -c $< -o $@

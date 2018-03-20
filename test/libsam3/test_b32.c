@@ -17,10 +17,10 @@
 
 
 static int testb32 (const char *src, const char *res) {
-  int dlen = sam3Base32EncodedLength(strlen(src)), len;
+  size_t dlen = sam3Base32EncodedLength(strlen(src)), len;
   char dest[128];
   //
-  len = sam3Base32Encode(dest, src, strlen(src));
+  len = sam3Base32Encode(dest, sizeof(dest), src, strlen(src));
   tt_int_op(len, ==, dlen);
   tt_int_op(len, ==, strlen(res));
   tt_str_op(res, ==, dest);
