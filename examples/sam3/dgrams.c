@@ -4,7 +4,8 @@
  * To Public License, Version 2, as published by Sam Hocevar. See
  * http://sam.zoy.org/wtfpl/COPYING for more details.
  *
- * I2P-Bote: 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
+ * I2P-Bote:
+ * 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
  * we are the Borg. */
 #include <errno.h>
 #include <stdio.h>
@@ -14,28 +15,25 @@
 
 #include "../libsam3/libsam3.h"
 
+#define KEYFILE "dgrams.key"
 
-#define KEYFILE  "dgrams.key"
-
-
-int main (int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   Sam3Session ses;
-  char privkey[1024], pubkey[1024], buf[33*1024];
+  char privkey[1024], pubkey[1024], buf[33 * 1024];
 
   /** quit command */
-  const char * quitstr = "quit";
-  const size_t quitlen = strlen(quistr);
+  const char *quitstr = "quit";
+  const size_t quitlen = strlen(quitstr);
 
   /** reply response */
-  const char * replystr = "reply: ";
+  const char *replystr = "reply: ";
   const size_t replylen = strlen(replystr);
-  
-  
+
   FILE *fl;
   //
-  //libsam3_debug = 1;
+  // libsam3_debug = 1;
   //
-  
+
   /** generate new destination keypair */
   printf("generating keys...\n");
   if (sam3GenerateKeys(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT) < 0) {
@@ -47,7 +45,8 @@ int main (int argc, char *argv[]) {
   strncpy(privkey, ses.privkey, sizeof(privkey));
   /** create sam session */
   printf("creating session...\n");
-  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, privkey, SAM3_SESSION_DGRAM, NULL) < 0) {
+  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, privkey,
+                        SAM3_SESSION_DGRAM, NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
@@ -70,12 +69,12 @@ int main (int argc, char *argv[]) {
   printf("starting main loop...\n");
   for (;;) {
     /** save replylen bytes for out reply at begining */
-    char * datagramBuf = buf + replylen;
-    const size_t datagramMaxLen = sizeof(buf) - replyLen;
+    char *datagramBuf = buf + replylen;
+    const size_t datagramMaxLen = sizeof(buf) - replylen;
     int sz, isquit;
     printf("waiting for datagram...\n");
     /** blocks until we get a UDP packet */
-    if ((sz = sam3DatagramReceive(&ses, datagramBuf, datagarmMaxLen) < 0)) {
+    if ((sz = sam3DatagramReceive(&ses, datagramBuf, datagramMaxLen) < 0)) {
       fprintf(stderr, "ERROR: %s\n", ses.error);
       goto error;
     }
@@ -89,12 +88,13 @@ int main (int argc, char *argv[]) {
     isquit = (sz == quitlen && memcmp(datagramBuf, quitstr, quitlen) == 0);
     /** echo datagram back to sender with "reply: " at the beginning */
     memcpy(buf, replystr, replylen);
-      
-    if (sam3DatagramSend(&ses, ses.destkey, buf, sz+replylen) < 0) {
+
+    if (sam3DatagramSend(&ses, ses.destkey, buf, sz + replylen) < 0) {
       fprintf(stderr, "ERROR: %s\n", ses.error);
       goto error;
     }
-    /** if we got a quit command wait for 10 seconds and break out of the mainloop */
+    /** if we got a quit command wait for 10 seconds and break out of the
+     * mainloop */
     if (isquit) {
       printf("shutting down...\n");
       sleep(10); /* let dgram reach it's destination */

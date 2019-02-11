@@ -4,7 +4,8 @@
  * To Public License, Version 2, as published by Sam Hocevar. See
  * http://sam.zoy.org/wtfpl/COPYING for more details.
  *
- * I2P-Bote: 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
+ * I2P-Bote:
+ * 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
  * we are the Borg. */
 #include <errno.h>
 #include <stdio.h>
@@ -14,16 +15,14 @@
 
 #include "../libsam3/libsam3.h"
 
+#define KEYFILE "streams.key"
 
-#define KEYFILE  "streams.key"
-
-
-int main (int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   Sam3Session ses;
   Sam3Connection *conn;
   char cmd[1024], destkey[517]; // 516 chars + \0
   //
-  //libsam3_debug = 1;
+  // libsam3_debug = 1;
   //
   memset(destkey, 0, sizeof(destkey));
   //
@@ -50,7 +49,9 @@ int main (int argc, char *argv[]) {
 ok:
   printf("creating session...\n");
   // create TRANSIENT session
-  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_STREAM, NULL) < 0) {
+  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT,
+                        SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_STREAM,
+                        NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
@@ -64,12 +65,15 @@ ok:
   //
   // now waiting for incoming connection
   printf("sending test command...\n");
-  if (sam3tcpPrintf(conn->fd, "test\n") < 0) goto error;
-  if (sam3tcpReceiveStr(conn->fd, cmd, sizeof(cmd)) < 0) goto error;
+  if (sam3tcpPrintf(conn->fd, "test\n") < 0)
+    goto error;
+  if (sam3tcpReceiveStr(conn->fd, cmd, sizeof(cmd)) < 0)
+    goto error;
   printf("echo: %s\n", cmd);
   //
   printf("sending quit command...\n");
-  if (sam3tcpPrintf(conn->fd, "quit\n") < 0) goto error;
+  if (sam3tcpPrintf(conn->fd, "quit\n") < 0)
+    goto error;
   //
   sam3CloseConnection(conn);
   sam3CloseSession(&ses);
