@@ -19,10 +19,11 @@
 
 int main(int argc, char *argv[]) {
   Sam3Session ses;
+  ses.pubcert = 5;
   Sam3Connection *conn;
-  char cmd[1024], destkey[517]; // 516 chars + \0
+  char cmd[1024], destkey[617]; // 616 chars + \0
   //
-  // libsam3_debug = 1;
+  libsam3_debug = 1;
   //
   memset(destkey, 0, sizeof(destkey));
   //
@@ -30,17 +31,18 @@ int main(int argc, char *argv[]) {
     FILE *fl = fopen(KEYFILE, "rb");
     //
     if (fl != NULL) {
-      if (fread(destkey, 516, 1, fl) == 1) {
+      if (fread(destkey, 616, 1, fl) == 1) {
         fclose(fl);
         goto ok;
       }
       fclose(fl);
     }
-    printf("usage: dgramc PUBKEY\n");
+    printf("usage: streamc PUBKEY\n");
     return 1;
   } else {
-    if (strlen(argv[1]) != 516) {
-      fprintf(stderr, "FATAL: invalid key length!\n");
+    if (!sam3CheckValidKeyLength(argv[1])) {
+      fprintf(stderr, "FATAL: invalid key length! %s %lu\n", argv[1],
+              strlen(argv[1]));
       return 1;
     }
     strcpy(destkey, argv[1]);

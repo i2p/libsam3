@@ -65,6 +65,14 @@ int sam3tcpSetTimeoutReceive(int fd, int timeoutms) {
   return -1;
 }
 
+int sam3CheckValidKeyLength(const char *pubkey) {
+  if (strlen(pubkey) >= SAM3_PUBKEY_SIZE &&
+      strlen(pubkey) <= SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE) {
+    return 1;
+  }
+  return 0;
+}
+
 int sam3tcpConnectIP(uint32_t ip, int port) {
   struct sockaddr_in addr;
   int fd, val = 1;
@@ -640,7 +648,7 @@ size_t sam3GenChannelName(char *dest, size_t minlen, size_t maxlen) {
 static int sam3HandshakeInternal(int fd) {
   SAMFieldList *rep = NULL;
   //
-  if (sam3tcpPrintf(fd, "HELLO VERSION MIN=3.0 MAX=3.0\n") < 0)
+  if (sam3tcpPrintf(fd, "HELLO VERSION MIN=3.0 MAX=3.1\n") < 0)
     goto error;
   rep = sam3ReadReply(fd);
   if (!sam3IsGoodReply(rep, "HELLO", "REPLY", "RESULT", "OK"))
@@ -679,6 +687,39 @@ static inline void strcpyerr(Sam3Session *ses, const char *errstr) {
     strncpy(ses->error, errstr, sizeof(ses->error) - 1);
 }
 
+char *getCertType(int type) {
+  char *certtype;
+  switch (type) {
+  case 1:
+    certtype = "SIGNATURE_TYPE=DSA_SHA1";
+    break;
+  case 2:
+    certtype = "SIGNATURE_TYPE=ECDSA_SHA256_P256";
+    break;
+  case 3:
+    certtype = "SIGNATURE_TYPE=ECDSA_SHA384_P384";
+    break;
+  case 4:
+    certtype = "SIGNATURE_TYPE=ECDSA_SHA512_P521";
+    break;
+  case 5:
+    certtype = "SIGNATURE_TYPE=EdDSA_SHA512_Ed25519";
+    break;
+  default:
+    certtype = "";
+    break;
+  }
+  return certtype;
+}
+
+char *sam3GetSessionCertType(Sam3Session *ses) {
+  return getCertType(ses->pubcert);
+}
+
+char *sam3GetConnectionCertType(Sam3Session *ses) {
+  return getCertType(ses->destcert);
+}
+
 int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port) {
   if (ses != NULL) {
     SAMFieldList *rep = NULL;
@@ -689,14 +730,15 @@ int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port) {
       return -1;
     }
     //
-    if (sam3tcpPrintf(fd, "DEST GENERATE\n") >= 0) {
+    char *buf = sam3GetConnectionCertType(ses);
+    if (sam3tcpPrintf(fd, "DEST GENERATE %s\n", buf) >= 0) {
       if ((rep = sam3ReadReply(fd)) != NULL &&
           sam3IsGoodReply(rep, "DEST", "REPLY", NULL, NULL)) {
         const char *pub = sam3FindField(rep, "PUB"),
                    *priv = sam3FindField(rep, "PRIV");
         //
-        if (pub != NULL && strlen(pub) == SAM3_PUBKEY_SIZE && priv != NULL &&
-            strlen(priv) == SAM3_PRIVKEY_SIZE) {
+        if (pub != NULL && sam3CheckValidKeyLength(pub) && priv != NULL &&
+            strlen(priv) == SAM3_PRIVKEY_MIN_SIZE) {
           strcpy(ses->pubkey, pub);
           strcpy(ses->privkey, priv);
           res = 0;
@@ -731,7 +773,7 @@ int sam3NameLookup(Sam3Session *ses, const char *hostname, int port,
                    *pub = sam3FindField(rep, "VALUE");
         //
         if (strcmp(rs, "OK") == 0) {
-          if (pub != NULL && strlen(pub) == SAM3_PUBKEY_SIZE) {
+          if (pub != NULL && sam3CheckValidKeyLength(pub)) {
             strcpy(ses->destkey, pub);
             strcpyerr(ses, NULL);
             res = 0;
@@ -809,7 +851,7 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
     ses->fd = -1;
     ses->fwd_fd = -1;
     //
-    if (privkey != NULL && strlen(privkey) != SAM3_PRIVKEY_SIZE)
+    if (privkey != NULL && strlen(privkey) != SAM3_PRIVKEY_MIN_SIZE)
       goto error;
     if ((int)type < 0 || (int)type > 2)
       goto error;
@@ -828,16 +870,17 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
     if (libsam3_debug)
       fprintf(stderr, "sam3CreateSession: creating session (%s)...\n",
               typenames[(int)type]);
+    char *buf = sam3GetSessionCertType(ses);
     if (sam3tcpPrintf(ses->fd,
-                      "SESSION CREATE STYLE=%s ID=%s DESTINATION=%s%s%s\n",
-                      typenames[(int)type], ses->channel, privkey, pdel,
+                      "SESSION CREATE STYLE=%s ID=%s DESTINATION=%s %s %s %s\n",
+                      typenames[(int)type], ses->channel, privkey, buf, pdel,
                       (params != NULL ? params : "")) < 0)
       goto error;
     if ((rep = sam3ReadReply(ses->fd)) == NULL)
       goto error;
     if (!sam3IsGoodReply(rep, "SESSION", "STATUS", "RESULT", "OK") ||
         (v = sam3FindField(rep, "DESTINATION")) == NULL ||
-        strlen(v) != SAM3_PRIVKEY_SIZE) {
+        strlen(v) != SAM3_PRIVKEY_MIN_SIZE) {
       if (libsam3_debug)
         fprintf(stderr, "sam3CreateSession: invalid reply (%ld)...\n",
                 (v != NULL ? strlen(v) : -1));
@@ -857,7 +900,7 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
     v = NULL;
     if (!sam3IsGoodReply(rep, "NAMING", "REPLY", "RESULT", "OK") ||
         (v = sam3FindField(rep, "VALUE")) == NULL ||
-        strlen(v) != SAM3_PUBKEY_SIZE) {
+        !sam3CheckValidKeyLength(v)) {
       if (libsam3_debug)
         fprintf(stderr, "sam3CreateSession: invalid NAMING reply (%ld)...\n",
                 (v != NULL ? strlen(v) : -1));
@@ -891,7 +934,7 @@ Sam3Connection *sam3StreamConnect(Sam3Session *ses, const char *destkey) {
       strcpyerr(ses, "INVALID_SESSION");
       return NULL;
     }
-    if (destkey == NULL || strlen(destkey) != SAM3_PUBKEY_SIZE) {
+    if (destkey == NULL || !sam3CheckValidKeyLength(destkey)) {
       strcpyerr(ses, "INVALID_KEY");
       return NULL;
     }
@@ -986,7 +1029,7 @@ Sam3Connection *sam3StreamAccept(Sam3Session *ses) {
       strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR_RES1"));
       goto error;
     }
-    if (strlen(repstr) != SAM3_PUBKEY_SIZE) {
+    if (!sam3CheckValidKeyLength(repstr)) {
       strcpyerr(ses, "INVALID_KEY");
       goto error;
     }
@@ -1067,7 +1110,7 @@ int sam3DatagramSend(Sam3Session *ses, const char *destkey, const void *buf,
       strcpyerr(ses, "INVALID_SESSION");
       return -1;
     }
-    if (destkey == NULL || strlen(destkey) != SAM3_PUBKEY_SIZE) {
+    if (destkey == NULL || !sam3CheckValidKeyLength(destkey)) {
       strcpyerr(ses, "INVALID_KEY");
       return -1;
     }
@@ -1075,7 +1118,7 @@ int sam3DatagramSend(Sam3Session *ses, const char *destkey, const void *buf,
       strcpyerr(ses, "INVALID_DATA");
       return -1;
     }
-    dbufsz = bufsize + 4 + 517 + strlen(ses->channel) + 1;
+    dbufsz = bufsize + 4 + SAM3_PUBKEY_SIZE + 1 + strlen(ses->channel) + 1;
     if ((dbuf = malloc(dbufsz)) == NULL) {
       strcpyerr(ses, "OUT_OF_MEMORY");
       return -1;
@@ -1119,7 +1162,7 @@ ssize_t sam3DatagramReceive(Sam3Session *ses, void *buf, size_t bufsize) {
     }
     //
     if ((v = sam3FindField(rep, "DESTINATION")) != NULL &&
-        strlen(v) == SAM3_PUBKEY_SIZE)
+        sam3CheckValidKeyLength(v))
       strncpy(ses->destkey, v, sizeof(ses->destkey));
     v = sam3FindField(rep, "SIZE"); // we have this field -- for sure
     if (!v[0] || !isdigit(*v)) {

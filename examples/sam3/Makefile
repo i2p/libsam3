@@ -1,5 +1,7 @@
 CFLAGS := -Wall -g -O2 -std=gnu99
 
+all: clean examples
+
 examples: example lookup dclient dserver sclient sserver
 
 example:
@@ -9,16 +11,22 @@ lookup:
 	${CC} ${CFLAGS} namelookup.c -o lookup ../libsam3/libsam3.o
 
 dclient:
-	${CC} ${CFLAGS} dgramc.c -o datagram-client ../libsam3/libsam3.o
+	${CC} ${CFLAGS} dgramc.c -o dgramc ../libsam3/libsam3.o
 
 dserver:
-	${CC} ${CFLAGS} dgrams.c -o datagram-server ../libsam3/libsam3.o
+	${CC} ${CFLAGS} dgrams.c -o dgrams ../libsam3/libsam3.o
 
 sclient:
-	${CC} ${CFLAGS} streamc.c -o stream-client ../libsam3/libsam3.o
+	${CC} ${CFLAGS} streamc.c -o streamc ../libsam3/libsam3.o
 
 sserver:
-	${CC} ${CFLAGS} streams.c -o stream-server ../libsam3/libsam3.o
+	${CC} ${CFLAGS} streams.c -o streams ../libsam3/libsam3.o
 
 clean:
-	rm -f samtest lookup datagram-client datagram-server stream-client stream-server
+	rm -f samtest lookup dgramc dgrams streamc streams streams.key test-lookup
+
+debug:
+	sed -i 's|// libsam3_debug = 1;|libsam3_debug = 1;|g' *.c
+
+nodebug:
+	sed -i 's|libsam3_debug = 1;|// libsam3_debug = 1;|g' *.c

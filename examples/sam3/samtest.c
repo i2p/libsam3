@@ -20,6 +20,9 @@ int main(int argc, char *argv[]) {
   SAMFieldList *rep = NULL;
   const char *v;
   //
+  libsam3_debug = 1;
+  //
+  //
   if ((fd = sam3Handshake(NULL, 0, NULL)) < 0)
     return 1;
   //

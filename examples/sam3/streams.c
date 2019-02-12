@@ -19,10 +19,11 @@
 
 int main(int argc, char *argv[]) {
   Sam3Session ses;
+  ses.destcert = 5;
   Sam3Connection *conn;
   FILE *fl;
   //
-  // libsam3_debug = 1;
+  libsam3_debug = 1;
   //
   printf("creating session...\n");
   // create TRANSIENT session

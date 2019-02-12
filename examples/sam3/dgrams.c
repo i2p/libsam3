@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
 
   FILE *fl;
   //
-  // libsam3_debug = 1;
+  libsam3_debug = 1;
   //
 
   /** generate new destination keypair */

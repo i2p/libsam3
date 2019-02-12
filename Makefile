@@ -36,3 +36,6 @@ clean:
 %.o: %.c Makefile
 	${CC} ${CFLAGS} -c $< -o $@
 
+fmt:
+	find . -name '*.c' -exec clang-format -i {} \;
+	find . -name '*.h' -exec clang-format -i {} \;

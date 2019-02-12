@@ -28,7 +28,7 @@ extern int libsam3_debug;
 
 #define SAM3_PUBKEY_SIZE (516)
 #define SAM3_CERT_SIZE (100)
-#define SAM3_PRIVKEY_SIZE (884)
+#define SAM3_PRIVKEY_MIN_SIZE (884)
 
 ////////////////////////////////////////////////////////////////////////////////
 /* returns fd or -1 */
@@ -117,14 +117,15 @@ typedef enum {
 typedef struct Sam3Session {
   Sam3SessionType type;
   int fd;
-  char privkey[SAM3_PRIVKEY_SIZE + 1]; // destination private key (asciiz)
+  char privkey[SAM3_PRIVKEY_MIN_SIZE + 1]; // destination private key (asciiz)
   char pubkey[SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE +
               1]; // destination public key (asciiz)
-  // char cert[SAM3_CERT_SIZE+1]
+  int pubcert;
   char channel[66]; // name of this sam session (asciiz)
   char destkey[SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE +
                1]; // for DGRAM sessions (asciiz)
-  char error[32];  // error message (asciiz)
+  int destcert;
+  char error[32]; // error message (asciiz)
   uint32_t ip;
   int port; // this will be changed to UDP port for DRAM/RAW (can be 0)
   struct Sam3Connection *connlist; // list of opened connections
@@ -135,8 +136,10 @@ typedef struct Sam3Connection {
   Sam3Session *ses;
   struct Sam3Connection *next;
   int fd;
-  char destkey[SAM3_PUBKEY_SIZE + 1]; // remote destination public key (asciiz)
-  char error[32];                     // error message (asciiz)
+  char destkey[SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE +
+               1]; // remote destination public key (asciiz)
+  int destcert;
+  char error[32]; // error message (asciiz)
 } Sam3Connection;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,6 +164,12 @@ extern int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
  * 'ses' must be properly initialized
  */
 extern int sam3CloseSession(Sam3Session *ses);
+
+/*
+ * Check to make sure that the destination in use is of a valid length, returns
+ * 1 if true and 0 if false.
+ */
+int sam3CheckValidKeyLength(const char *pubkey);
 
 /*
  * open stream connection to 'destkey' endpoint

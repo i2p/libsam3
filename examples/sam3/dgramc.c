@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
   char destkey[517] = {0}; // 516 chars + \0
   int sz;
   //
-  // libsam3_debug = 1;
+  libsam3_debug = 1;
   //
   if (argc < 2) {
     FILE *fl = fopen(KEYFILE, "rb");

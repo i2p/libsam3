@@ -17,14 +17,19 @@
 int main(int argc, char *argv[]) {
   Sam3Session ses;
   //
+  //
+  libsam3_debug = 1;
+  //
   if (argc < 2) {
     printf("usage: %s name [name...]\n", argv[0]);
     return 1;
   }
   /** for each name in arguments ... */
   for (int n = 1; n < argc; ++n) {
-    fprintf(stdout, "%s ... ", argv[n]);
-    fflush(stdout);
+    if (!getenv("I2P_LOOKUP_QUIET")) {
+      fprintf(stdout, "%s ... ", argv[n]);
+      fflush(stdout);
+    }
     /** do oneshot name lookup */
     if (sam3NameLookup(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, argv[n]) >=
         0) {
