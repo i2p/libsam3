@@ -114,17 +114,25 @@ typedef enum {
   SAM3_SESSION_STREAM
 } Sam3SessionType;
 
+typedef enum {
+  DSA_SHA1,
+  ECDSA_SHA256_P256,
+  ECDSA_SHA384_P384,
+  ECDSA_SHA512_P521,
+  EdDSA_SHA512_Ed25519
+} Sam3SigType;
+
 typedef struct Sam3Session {
   Sam3SessionType type;
+  Sam3SigType sigType;
   int fd;
   char privkey[SAM3_PRIVKEY_MIN_SIZE + 1]; // destination private key (asciiz)
   char pubkey[SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE +
-              1]; // destination public key (asciiz)
-  int pubcert;
+              1];   // destination public key (asciiz)
   char channel[66]; // name of this sam session (asciiz)
   char destkey[SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE +
                1]; // for DGRAM sessions (asciiz)
-  int destcert;
+  // int destsig;
   char error[32]; // error message (asciiz)
   uint32_t ip;
   int port; // this will be changed to UDP port for DRAM/RAW (can be 0)
@@ -156,7 +164,7 @@ typedef struct Sam3Connection {
  */
 extern int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
                              const char *privkey, Sam3SessionType type,
-                             const char *params);
+                             Sam3SigType sigType, const char *params);
 
 /*
  * close SAM session (and all it's connections)
@@ -215,7 +223,8 @@ extern int sam3CloseConnection(Sam3Connection *conn);
  * will not set 'error' field
  * returns <0 on error, 0 on ok
  */
-extern int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port);
+extern int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port,
+                            int sigType);
 
 /*
  * do name lookup (something like gethostbyname())

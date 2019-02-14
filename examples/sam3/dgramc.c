@@ -54,7 +54,7 @@ ok:
   printf("creating session...\n");
   /* create TRANSIENT session with temporary disposible destination */
   if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT,
-                        SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_DGRAM,
+                        SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_DGRAM, 4,
                         NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;

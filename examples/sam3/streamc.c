@@ -19,7 +19,6 @@
 
 int main(int argc, char *argv[]) {
   Sam3Session ses;
-  ses.pubcert = 5;
   Sam3Connection *conn;
   char cmd[1024], destkey[617]; // 616 chars + \0
   //
@@ -52,7 +51,7 @@ ok:
   printf("creating session...\n");
   // create TRANSIENT session
   if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT,
-                        SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_STREAM,
+                        SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_STREAM, 4,
                         NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;

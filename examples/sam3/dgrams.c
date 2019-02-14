@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
 
   /** generate new destination keypair */
   printf("generating keys...\n");
-  if (sam3GenerateKeys(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT) < 0) {
+  if (sam3GenerateKeys(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, 4) < 0) {
     fprintf(stderr, "FATAL: can't generate keys\n");
     return 1;
   }
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
   /** create sam session */
   printf("creating session...\n");
   if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, privkey,
-                        SAM3_SESSION_DGRAM, NULL) < 0) {
+                        SAM3_SESSION_DGRAM, 5, NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }

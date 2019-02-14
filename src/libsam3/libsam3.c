@@ -687,51 +687,22 @@ static inline void strcpyerr(Sam3Session *ses, const char *errstr) {
     strncpy(ses->error, errstr, sizeof(ses->error) - 1);
 }
 
-char *getCertType(int type) {
-  char *certtype;
-  switch (type) {
-  case 1:
-    certtype = "SIGNATURE_TYPE=DSA_SHA1";
-    break;
-  case 2:
-    certtype = "SIGNATURE_TYPE=ECDSA_SHA256_P256";
-    break;
-  case 3:
-    certtype = "SIGNATURE_TYPE=ECDSA_SHA384_P384";
-    break;
-  case 4:
-    certtype = "SIGNATURE_TYPE=ECDSA_SHA512_P521";
-    break;
-  case 5:
-    certtype = "SIGNATURE_TYPE=EdDSA_SHA512_Ed25519";
-    break;
-  default:
-    certtype = "";
-    break;
-  }
-  return certtype;
-}
-
-char *sam3GetSessionCertType(Sam3Session *ses) {
-  return getCertType(ses->pubcert);
-}
-
-char *sam3GetConnectionCertType(Sam3Session *ses) {
-  return getCertType(ses->destcert);
-}
-
-int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port) {
+int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port,
+                     int sigType) {
   if (ses != NULL) {
     SAMFieldList *rep = NULL;
     int fd, res = -1;
+    static const char *sigtypes[5] = {
+        "SIGNATURE_TYPE=DSA_SHA1", "SIGNATURE_TYPE=ECDSA_SHA256_P256",
+        "SIGNATURE_TYPE=ECDSA_SHA384_P384", "SIGNATURE_TYPE=ECDSA_SHA512_P521",
+        "SIGNATURE_TYPE=EdDSA_SHA512_Ed25519"};
     //
     if ((fd = sam3Handshake(hostname, port, NULL)) < 0) {
       strcpyerr(ses, "I2P_ERROR");
       return -1;
     }
     //
-    char *buf = sam3GetConnectionCertType(ses);
-    if (sam3tcpPrintf(fd, "DEST GENERATE %s\n", buf) >= 0) {
+    if (sam3tcpPrintf(fd, "DEST GENERATE %s\n", sigtypes[sigType]) >= 0) {
       if ((rep = sam3ReadReply(fd)) != NULL &&
           sam3IsGoodReply(rep, "DEST", "REPLY", NULL, NULL)) {
         const char *pub = sam3FindField(rep, "PUB"),
@@ -840,9 +811,14 @@ int sam3CloseSession(Sam3Session *ses) {
 
 int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
                       const char *privkey, Sam3SessionType type,
-                      const char *params) {
+                      Sam3SigType sigType, const char *params) {
   if (ses != NULL) {
     static const char *typenames[3] = {"RAW", "DATAGRAM", "STREAM"};
+    static const char *sigtypes[5] = {
+        "SIGNATURE_TYPE=DSA_SHA1", "SIGNATURE_TYPE=ECDSA_SHA256_P256",
+        "SIGNATURE_TYPE=ECDSA_SHA384_P384", "SIGNATURE_TYPE=ECDSA_SHA512_P521",
+        "SIGNATURE_TYPE=EdDSA_SHA512_Ed25519"};
+
     SAMFieldList *rep;
     const char *v = NULL;
     const char *pdel = (params != NULL ? " " : "");
@@ -859,6 +835,7 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
       privkey = "TRANSIENT";
     //
     ses->type = type;
+    ses->sigType = sigType;
     ses->port = (type == SAM3_SESSION_STREAM ? (port ? port : 7656) : 7655);
     sam3GenChannelName(ses->channel, 32, 64);
     if (libsam3_debug)
@@ -870,11 +847,10 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
     if (libsam3_debug)
       fprintf(stderr, "sam3CreateSession: creating session (%s)...\n",
               typenames[(int)type]);
-    char *buf = sam3GetConnectionCertType(ses);
-    if (sam3tcpPrintf(ses->fd,
-                      "SESSION CREATE STYLE=%s ID=%s DESTINATION=%s %s %s %s\n",
-                      typenames[(int)type], ses->channel, privkey, buf, pdel,
-                      (params != NULL ? params : "")) < 0)
+    if (sam3tcpPrintf(
+            ses->fd, "SESSION CREATE STYLE=%s ID=%s DESTINATION=%s %s %s %s\n",
+            typenames[(int)type], ses->channel, privkey, sigtypes[(int)sigType],
+            pdel, (params != NULL ? params : "")) < 0)
       goto error;
     if ((rep = sam3ReadReply(ses->fd)) == NULL)
       goto error;
