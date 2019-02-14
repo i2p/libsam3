@@ -870,7 +870,7 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
     if (libsam3_debug)
       fprintf(stderr, "sam3CreateSession: creating session (%s)...\n",
               typenames[(int)type]);
-    char *buf = sam3GetSessionCertType(ses);
+    char *buf = sam3GetConnectionCertType(ses);
     if (sam3tcpPrintf(ses->fd,
                       "SESSION CREATE STYLE=%s ID=%s DESTINATION=%s %s %s %s\n",
                       typenames[(int)type], ses->channel, privkey, buf, pdel,
