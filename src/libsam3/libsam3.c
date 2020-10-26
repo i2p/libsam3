@@ -1046,7 +1046,7 @@ int sam3StreamForward(Sam3Session *ses, const char *hostname, int port) {
       strcpyerr(ses, "IO_ERROR_SK");
       goto error;
     }
-    if (sam3tcpPrintf(ses->fwd_fd, "STREAM FORWARD ID=%s PORT=%d HOST=%s\n",
+    if (sam3tcpPrintf(ses->fwd_fd, "STREAM FORWARD ID=%s PORT=%d HOST=%s SILENT=true\n",
                       ses->channel, port, hostname) < 0) {
       strcpyerr(ses, "IO_ERROR_PF");
       goto error;
