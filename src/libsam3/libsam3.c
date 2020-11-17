@@ -709,7 +709,7 @@ int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port,
                    *priv = sam3FindField(rep, "PRIV");
         //
         if (pub != NULL && sam3CheckValidKeyLength(pub) && priv != NULL &&
-            strlen(priv) == SAM3_PRIVKEY_MIN_SIZE) {
+            strlen(priv) >= SAM3_PRIVKEY_MIN_SIZE) {
           strcpy(ses->pubkey, pub);
           strcpy(ses->privkey, priv);
           res = 0;
@@ -827,7 +827,7 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
     ses->fd = -1;
     ses->fwd_fd = -1;
     //
-    if (privkey != NULL && strlen(privkey) != SAM3_PRIVKEY_MIN_SIZE)
+    if (privkey != NULL && strlen(privkey) < SAM3_PRIVKEY_MIN_SIZE)
       goto error;
     if ((int)type < 0 || (int)type > 2)
       goto error;
@@ -856,7 +856,7 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
       goto error;
     if (!sam3IsGoodReply(rep, "SESSION", "STATUS", "RESULT", "OK") ||
         (v = sam3FindField(rep, "DESTINATION")) == NULL ||
-        strlen(v) != SAM3_PRIVKEY_MIN_SIZE) {
+        strlen(v) < SAM3_PRIVKEY_MIN_SIZE) {
       if (libsam3_debug)
         fprintf(stderr, "sam3CreateSession: invalid reply (%ld)...\n",
                 (v != NULL ? strlen(v) : -1));
@@ -1046,7 +1046,7 @@ int sam3StreamForward(Sam3Session *ses, const char *hostname, int port) {
       strcpyerr(ses, "IO_ERROR_SK");
       goto error;
     }
-    if (sam3tcpPrintf(ses->fwd_fd, "STREAM FORWARD ID=%s PORT=%d HOST=%s\n",
+    if (sam3tcpPrintf(ses->fwd_fd, "STREAM FORWARD ID=%s PORT=%d HOST=%s SILENT=true\n",
                       ses->channel, port, hostname) < 0) {
       strcpyerr(ses, "IO_ERROR_PF");
       goto error;
