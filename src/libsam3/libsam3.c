@@ -809,6 +809,18 @@ int sam3CloseSession(Sam3Session *ses) {
   return -1;
 }
 
+int sam3CreateSilentSession(Sam3Session *ses, const char *hostname, int port,
+                            const char *privkey, Sam3SessionType type,
+                            Sam3SigType sigType, const char *params) {
+  int r =
+      sam3CreateSession(ses, hostname, port, privkey, type, sigType, params);
+  if (r != 0) {
+    return r;
+  }
+  ses->silent = true;
+  return 0;
+}
+
 int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
                       const char *privkey, Sam3SessionType type,
                       Sam3SigType sigType, const char *params) {
@@ -826,6 +838,7 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
     memset(ses, 0, sizeof(Sam3Session));
     ses->fd = -1;
     ses->fwd_fd = -1;
+    ses->silent = false;
     //
     if (privkey != NULL && strlen(privkey) != SAM3_PRIVKEY_MIN_SIZE)
       goto error;
@@ -922,8 +935,11 @@ Sam3Connection *sam3StreamConnect(Sam3Session *ses, const char *destkey) {
       strcpyerr(ses, "IO_ERROR_SK");
       goto error;
     }
-    if (sam3tcpPrintf(conn->fd, "STREAM CONNECT ID=%s DESTINATION=%s\n",
-                      ses->channel, destkey) < 0) {
+    char silent[6];
+    checkIsSilent(ses, silent);
+    if (sam3tcpPrintf(conn->fd,
+                      "STREAM CONNECT ID=%s DESTINATION=%s SILENT=%s\n",
+                      ses->channel, destkey, silent) < 0) {
       strcpyerr(ses, "IO_ERROR");
       goto error;
     }
@@ -1026,6 +1042,14 @@ Sam3Connection *sam3StreamAccept(Sam3Session *ses) {
   return NULL;
 }
 
+void checkIsSilent(Sam3Session *ses, char *str) {
+  if (ses->silent == true) {
+    str = "true ";
+  } else {
+    str = "false";
+  }
+}
+
 int sam3StreamForward(Sam3Session *ses, const char *hostname, int port) {
   if (ses != NULL) {
     SAMFieldList *rep = NULL;
@@ -1046,8 +1070,11 @@ int sam3StreamForward(Sam3Session *ses, const char *hostname, int port) {
       strcpyerr(ses, "IO_ERROR_SK");
       goto error;
     }
-    if (sam3tcpPrintf(ses->fwd_fd, "STREAM FORWARD ID=%s PORT=%d HOST=%s\n",
-                      ses->channel, port, hostname) < 0) {
+    char silent[6];
+    checkIsSilent(ses, silent);
+    if (sam3tcpPrintf(ses->fwd_fd,
+                      "STREAM FORWARD ID=%s PORT=%d HOST=%s SILENT=%s\n",
+                      ses->channel, port, hostname, silent) < 0) {
       strcpyerr(ses, "IO_ERROR_PF");
       goto error;
     }
