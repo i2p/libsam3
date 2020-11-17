@@ -4,7 +4,8 @@
  * To Public License, Version 2, as published by Sam Hocevar. See
  * http://sam.zoy.org/wtfpl/COPYING for more details.
  *
- * I2P-Bote: 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
+ * I2P-Bote:
+ * 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
  * we are the Borg. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,8 +16,7 @@
 #include "../../src/ext/tinytest_macros.h"
 #include "../../src/libsam3/libsam3.h"
 
-
-static int testb32 (const char *src, const char *res) {
+static int testb32(const char *src, const char *res) {
   size_t dlen = sam3Base32EncodedLength(strlen(src)), len;
   char dest[128];
   //
@@ -41,11 +41,11 @@ void test_b32_encode(void *data) {
   tt_assert(testb32("fooba", "mzxw6ytb"));
   tt_assert(testb32("foobar", "mzxw6ytboi======"));
 
-end:
-  ;
+end:;
 }
 
-struct testcase_t b32_tests[] = {
-  { "encode", test_b32_encode, },
-  END_OF_TESTCASES
-};
+struct testcase_t b32_tests[] = {{
+                                     "encode",
+                                     test_b32_encode,
+                                 },
+                                 END_OF_TESTCASES};

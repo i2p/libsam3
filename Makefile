@@ -31,7 +31,11 @@ libsam3-tests: ${TEST_OBJS} ${LIB}
 	${CC} $^ -o $@
 
 clean:
-	rm -f libsam3-tests ${LIB} ${OBJS}
+	rm -f libsam3-tests ${LIB} ${OBJS} examples/sam3/samtest
 
 %.o: %.c Makefile
 	${CC} ${CFLAGS} -c $< -o $@
+
+fmt:
+	find . -name '*.c' -exec clang-format -i {} \;
+	find . -name '*.h' -exec clang-format -i {} \;
