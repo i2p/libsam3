@@ -4,7 +4,8 @@
  * To Public License, Version 2, as published by Sam Hocevar. See
  * http://sam.zoy.org/wtfpl/COPYING for more details.
  *
- * I2P-Bote: 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
+ * I2P-Bote:
+ * 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
  * we are the Borg. */
 #include <errno.h>
 #include <stdio.h>
@@ -18,86 +19,90 @@
 
 #include "../libsam3a/libsam3a.h"
 
+////////////////////////////////////////////////////////////////////////////////
+#define KEYFILE "streams.key"
 
 ////////////////////////////////////////////////////////////////////////////////
-#define KEYFILE  "streams.key"
-
-
-////////////////////////////////////////////////////////////////////////////////
-static void ccbError (Sam3AConnection *ct) {
-  fprintf(stderr, "\n===============================\nCONNECTION_ERROR: [%s]\n===============================\n", ct->error);
+static void ccbError(Sam3AConnection *ct) {
+  fprintf(stderr,
+          "\n===============================\nCONNECTION_ERROR: "
+          "[%s]\n===============================\n",
+          ct->error);
 }
 
-
-static void ccbDisconnected (Sam3AConnection *ct) {
-  fprintf(stderr, "\n===============================\nCONNECTION_DISCONNECTED\n===============================\n");
+static void ccbDisconnected(Sam3AConnection *ct) {
+  fprintf(stderr, "\n===============================\nCONNECTION_"
+                  "DISCONNECTED\n===============================\n");
 }
 
-
-static void ccbConnected (Sam3AConnection *ct) {
-  fprintf(stderr, "\n===============================\nCONNECTION_CONNECTED\n===============================\n");
-  //sam3aCancelConnection(ct); // cbSent() will not be called
+static void ccbConnected(Sam3AConnection *ct) {
+  fprintf(stderr, "\n===============================\nCONNECTION_CONNECTED\n==="
+                  "============================\n");
+  // sam3aCancelConnection(ct); // cbSent() will not be called
 }
 
-
-static void ccbAccepted (Sam3AConnection *ct) {
-  fprintf(stderr, "\n===============================\nCONNECTION_ACCEPTED\n===============================\n");
+static void ccbAccepted(Sam3AConnection *ct) {
+  fprintf(stderr, "\n===============================\nCONNECTION_ACCEPTED\n===="
+                  "===========================\n");
 }
 
-
-static void ccbSent (Sam3AConnection *ct) {
-  fprintf(stderr, "\n===============================\nCONNECTION_WANTBYTES\n===============================\n");
-  //sam3aCancelConnection(ct);
-  //sam3aCancelSession(ct->ses); // hehe
+static void ccbSent(Sam3AConnection *ct) {
+  fprintf(stderr, "\n===============================\nCONNECTION_WANTBYTES\n==="
+                  "============================\n");
+  // sam3aCancelConnection(ct);
+  // sam3aCancelSession(ct->ses); // hehe
   fprintf(stderr, "(%p)\n", ct->udata);
   //
   switch ((intptr_t)ct->udata) {
-    case 0:
-      if (sam3aSend(ct, "test\n", -1) < 0) {
-        fprintf(stderr, "SEND ERROR!\n");
-        sam3aCancelSession(ct->ses); // hehe
-      }
-      break;
-    case 1:
-      if (sam3aSend(ct, "quit\n", -1) < 0) {
-        fprintf(stderr, "SEND ERROR!\n");
-        sam3aCancelSession(ct->ses); // hehe
-      }
-      break;
-    default: return;
+  case 0:
+    if (sam3aSend(ct, "test\n", -1) < 0) {
+      fprintf(stderr, "SEND ERROR!\n");
+      sam3aCancelSession(ct->ses); // hehe
+    }
+    break;
+  case 1:
+    if (sam3aSend(ct, "quit\n", -1) < 0) {
+      fprintf(stderr, "SEND ERROR!\n");
+      sam3aCancelSession(ct->ses); // hehe
+    }
+    break;
+  default:
+    return;
   }
-  ct->udata = (void *)(((intptr_t)ct->udata)+1);
+  ct->udata = (void *)(((intptr_t)ct->udata) + 1);
 }
 
-
-static void ccbRead (Sam3AConnection *ct, const void *buf, int bufsize) {
-  fprintf(stderr, "\n===============================\nCONNECTION_GOTBYTES (%d)\n===============================\n", bufsize);
+static void ccbRead(Sam3AConnection *ct, const void *buf, int bufsize) {
+  fprintf(stderr,
+          "\n===============================\nCONNECTION_GOTBYTES "
+          "(%d)\n===============================\n",
+          bufsize);
 }
 
-
-static void ccbDestroy (Sam3AConnection *ct) {
-  fprintf(stderr, "\n===============================\nCONNECTION_DESTROY\n===============================\n");
+static void ccbDestroy(Sam3AConnection *ct) {
+  fprintf(stderr, "\n===============================\nCONNECTION_DESTROY\n====="
+                  "==========================\n");
 }
-
 
 static const Sam3AConnectionCallbacks ccb = {
-  .cbError = ccbError,
-  .cbDisconnected = ccbDisconnected,
-  .cbConnected = ccbConnected,
-  .cbAccepted = ccbAccepted,
-  .cbSent = ccbSent,
-  .cbRead = ccbRead,
-  .cbDestroy = ccbDestroy,
+    .cbError = ccbError,
+    .cbDisconnected = ccbDisconnected,
+    .cbConnected = ccbConnected,
+    .cbAccepted = ccbAccepted,
+    .cbSent = ccbSent,
+    .cbRead = ccbRead,
+    .cbDestroy = ccbDestroy,
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
-static void scbError (Sam3ASession *ses) {
-  fprintf(stderr, "\n===============================\nSESION_ERROR: [%s]\n===============================\n", ses->error);
+static void scbError(Sam3ASession *ses) {
+  fprintf(stderr,
+          "\n===============================\nSESION_ERROR: "
+          "[%s]\n===============================\n",
+          ses->error);
 }
 
-
-static void scbCreated (Sam3ASession *ses) {
+static void scbCreated(Sam3ASession *ses) {
   char destkey[517];
   FILE *fl;
   //
@@ -128,42 +133,41 @@ static void scbCreated (Sam3ASession *ses) {
   fprintf(stderr, "GOON: creating connection...\n");
 }
 
-
-static void scbDisconnected (Sam3ASession *ses) {
-  fprintf(stderr, "\n===============================\nSESION_DISCONNECTED\n===============================\n");
+static void scbDisconnected(Sam3ASession *ses) {
+  fprintf(stderr, "\n===============================\nSESION_DISCONNECTED\n===="
+                  "===========================\n");
 }
 
-
-static void scbDGramRead (Sam3ASession *ses, const void *buf, int bufsize) {
-  fprintf(stderr, "\n===============================\nSESION_DATAGRAM_READ\n===============================\n");
+static void scbDGramRead(Sam3ASession *ses, const void *buf, int bufsize) {
+  fprintf(stderr, "\n===============================\nSESION_DATAGRAM_READ\n==="
+                  "============================\n");
 }
 
-
-static void scbDestroy (Sam3ASession *ses) {
-  fprintf(stderr, "\n===============================\nSESION_DESTROYED\n===============================\n");
+static void scbDestroy(Sam3ASession *ses) {
+  fprintf(stderr, "\n===============================\nSESION_DESTROYED\n======="
+                  "========================\n");
 }
-
 
 static const Sam3ASessionCallbacks scb = {
-  .cbError = scbError,
-  .cbCreated = scbCreated,
-  .cbDisconnected = scbDisconnected,
-  .cbDatagramRead = scbDGramRead,
-  .cbDestroy = scbDestroy,
+    .cbError = scbError,
+    .cbCreated = scbCreated,
+    .cbDisconnected = scbDisconnected,
+    .cbDatagramRead = scbDGramRead,
+    .cbDestroy = scbDestroy,
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
-#define HOST  SAM3A_HOST_DEFAULT
+#define HOST SAM3A_HOST_DEFAULT
 //#define HOST  "google.com"
 
-
-int main (int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   Sam3ASession ses;
   //
   libsam3a_debug = 0;
   //
-  if (sam3aCreateSession(&ses, &scb, HOST, SAM3A_PORT_DEFAULT, SAM3A_DESTINATION_TRANSIENT, SAM3A_SESSION_STREAM) < 0) {
+  if (sam3aCreateSession(&ses, &scb, HOST, SAM3A_PORT_DEFAULT,
+                         SAM3A_DESTINATION_TRANSIENT,
+                         SAM3A_SESSION_STREAM) < 0) {
     fprintf(stderr, "FATAL: can't create main session!\n");
     return 1;
   }
@@ -175,18 +179,23 @@ int main (int argc, char *argv[]) {
     //
     FD_ZERO(&rds);
     FD_ZERO(&wrs);
-    if (sam3aIsActiveSession(&ses) && (maxfd = sam3aAddSessionToFDS(&ses, -1, &rds, &wrs)) < 0) break;
+    if (sam3aIsActiveSession(&ses) &&
+        (maxfd = sam3aAddSessionToFDS(&ses, -1, &rds, &wrs)) < 0)
+      break;
     sam3ams2timeval(&to, 1000);
-    res = select(maxfd+1, &rds, &wrs, NULL, &to);
+    res = select(maxfd + 1, &rds, &wrs, NULL, &to);
     if (res < 0) {
-      if (errno == EINTR) continue;
+      if (errno == EINTR)
+        continue;
       fprintf(stderr, "FATAL: select() error!\n");
       break;
     }
     if (res == 0) {
-      fprintf(stdout, "."); fflush(stdout);
+      fprintf(stdout, ".");
+      fflush(stdout);
     } else {
-      if (sam3aIsActiveSession(&ses)) sam3aProcessSessionIO(&ses, &rds, &wrs);
+      if (sam3aIsActiveSession(&ses))
+        sam3aProcessSessionIO(&ses, &rds, &wrs);
     }
   }
   //

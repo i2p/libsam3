@@ -4,7 +4,8 @@
  * To Public License, Version 2, as published by Sam Hocevar. See
  * http://sam.zoy.org/wtfpl/COPYING for more details.
  *
- * I2P-Bote: 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
+ * I2P-Bote:
+ * 5m77dFKGEq6~7jgtrfw56q3t~SmfwZubmGdyOLQOPoPp8MYwsZ~pfUCwud6LB1EmFxkm4C3CGlzq-hVs9WnhUV
  * we are the Borg. */
 #include <errno.h>
 #include <stdio.h>
@@ -14,23 +15,20 @@
 
 #include "../libsam3/libsam3.h"
 
-
 // comment the following if you don't want to stress UDP with 'big' datagram
 // seems that up to 32000 bytes can be used for localhost
 // note that we need 516+6+? bytes for header; lets reserve 1024 bytes for it
-#define BIG  (32000-1024)
+#define BIG (32000 - 1024)
 
+#define KEYFILE "dgrams.key"
 
-#define KEYFILE  "dgrams.key"
-
-
-int main (int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   Sam3Session ses;
   char buf[1024];
   char destkey[517] = {0}; // 516 chars + \0
   int sz;
   //
-  //libsam3_debug = 1;
+  libsam3_debug = 1;
   //
   if (argc < 2) {
     FILE *fl = fopen(KEYFILE, "rb");
@@ -55,7 +53,9 @@ int main (int argc, char *argv[]) {
 ok:
   printf("creating session...\n");
   /* create TRANSIENT session with temporary disposible destination */
-  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT, SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_DGRAM, NULL) < 0) {
+  if (sam3CreateSession(&ses, SAM3_HOST_DEFAULT, SAM3_PORT_DEFAULT,
+                        SAM3_DESTINATION_TRANSIENT, SAM3_SESSION_DGRAM, 4,
+                        NULL) < 0) {
     fprintf(stderr, "FATAL: can't create session\n");
     return 1;
   }
@@ -66,7 +66,7 @@ ok:
     goto error;
   }
   /** receive reply */
-  if ((sz = sam3DatagramReceive(&ses, buf, sizeof(buf)-1)) < 0) {
+  if ((sz = sam3DatagramReceive(&ses, buf, sizeof(buf) - 1)) < 0) {
     fprintf(stderr, "ERROR: %s\n", ses.error);
     goto error;
   }
@@ -76,16 +76,16 @@ ok:
   //
 #ifdef BIG
   {
-    char *big = calloc(BIG+1024, sizeof(char));
+    char *big = calloc(BIG + 1024, sizeof(char));
     /** generate random string */
-    sam3GenChannelName(big, BIG+1023, BIG+1023);
+    sam3GenChannelName(big, BIG + 1023, BIG + 1023);
     printf("sending BIG datagram...\n");
     if (sam3DatagramSend(&ses, destkey, big, BIG) < 0) {
       free(big);
       fprintf(stderr, "ERROR: %s\n", ses.error);
       goto error;
     }
-    if ((sz = sam3DatagramReceive(&ses, big, BIG+512)) < 0) {
+    if ((sz = sam3DatagramReceive(&ses, big, BIG + 512)) < 0) {
       free(big);
       fprintf(stderr, "ERROR: %s\n", ses.error);
       goto error;
@@ -101,7 +101,7 @@ ok:
     fprintf(stderr, "ERROR: %s\n", ses.error);
     goto error;
   }
-  if ((sz = sam3DatagramReceive(&ses, buf, sizeof(buf)-1)) < 0) {
+  if ((sz = sam3DatagramReceive(&ses, buf, sizeof(buf) - 1)) < 0) {
     fprintf(stderr, "ERROR: %s\n", ses.error);
     goto error;
   }
