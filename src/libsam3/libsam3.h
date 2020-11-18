@@ -14,6 +14,12 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#if defined(_MSC_VER)
+#include <stddef.h>
+#include 
+typedef SSIZE_T ssize_t;
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

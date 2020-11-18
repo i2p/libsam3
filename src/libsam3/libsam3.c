@@ -30,7 +30,6 @@
 #ifndef SHUT_RDWR
 # define SHUT_RDWR 2
 #endif
-
 #endif
 
 #ifdef __unix__
