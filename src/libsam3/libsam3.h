@@ -10,14 +10,14 @@
 #ifndef LIBSAM3_H
 #define LIBSAM3_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
 #ifdef __MINGW32__
 #include <stddef.h>
 #ifndef ssize_t
-//typedef SSIZE_T ssize_t;
+// typedef SSIZE_T ssize_t;
 #endif
 #endif
 

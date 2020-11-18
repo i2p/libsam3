@@ -23,20 +23,20 @@
 
 #ifdef __MINGW32__
 //#include <winsock.h>
-#include <winsock2.h>
 #include <windows.h>
+#include <winsock2.h>
 #include <ws2tcpip.h>
 #ifndef MSG_NOSIGNAL
-# define MSG_NOSIGNAL 0
+#define MSG_NOSIGNAL 0
 #endif
 #ifndef SHUT_RDWR
-# define SHUT_RDWR 2
+#define SHUT_RDWR 2
 #endif
 #endif
 
 #ifdef __unix__
-#include <netdb.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>

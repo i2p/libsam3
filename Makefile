@@ -16,12 +16,6 @@ OBJS := ${LIB_OBJS} ${TEST_OBJS}
 
 LIB := libsam3.a
 
-
-CC = x86_64-w64-mingw32-gcc
-CFLAGS = -Wall -O2 
-LDFLAGS = -lmingw32 -lwsock32 -mwindows
-
-
 all: build check
 
 check: libsam3-tests

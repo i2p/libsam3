@@ -16,3 +16,15 @@ Copy the two files from one of the following locations into your codebase:
 - `src/libsam3a` - Asynchronous implementation.
 
 See `examples/` for how to use various parts of the API.
+
+## Cross-Compiling for Windows from debian:
+
+Set your cross-compiler up:
+
+``` sh
+export CC=x86_64-w64-mingw32-gcc
+export CFLAGS='-Wall -O2 '
+export LDFLAGS='-lmingw32 -lws2_32 -lwsock32 -mwindows'
+```
+
+run `make build`
