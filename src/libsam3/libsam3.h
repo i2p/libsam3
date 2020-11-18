@@ -20,6 +20,12 @@
 typedef SSIZE_T ssize_t;
 #endif
 
+#ifdef __MINGW32__
+#include <stddef.h>
+#include 
+typedef SSIZE_T ssize_t;
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
