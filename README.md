@@ -27,4 +27,5 @@ export CFLAGS='-Wall -O2 '
 export LDFLAGS='-lmingw32 -lws2_32 -lwsock32 -mwindows'
 ```
 
-run `make build`
+and run `make build`. Only libsam3 is available for Windows, libsam3a will be
+made available at a later date.
