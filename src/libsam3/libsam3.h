@@ -10,9 +10,18 @@
 #ifndef LIBSAM3_H
 #define LIBSAM3_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdbool.h>
+
+#ifndef _SSIZE_T_DEFINED
+#define _SSIZE_T_DEFINED
+#undef ssize_t
+#ifdef _WIN64
+typedef signed int64 ssize_t;
+typedef int ssize_t;
+#endif /* _WIN64 */
+#endif /* _SSIZE_T_DEFINED */
 
 #ifdef __cplusplus
 extern "C" {
