@@ -18,6 +18,15 @@
 
 #include <sys/types.h>
 
+#ifdef __MINGW32__
+//#include <winsock.h>
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#define SOCK_CLOEXEC 0x10000000
+#define SOCK_NONBLOCK 0x20000000
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

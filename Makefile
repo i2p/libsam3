@@ -33,7 +33,7 @@ clean:
 	rm -f libsam3-tests ${LIB} ${OBJS} examples/sam3/samtest
 
 %.o: %.c Makefile
-	${CC} ${CFLAGS} -c $< -o $@
+	${CC} ${CFLAGS} $(LDFLAGS) -c $< -o $@
 
 fmt:
 	find . -name '*.c' -exec clang-format -i {} \;
