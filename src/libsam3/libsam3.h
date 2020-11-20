@@ -19,7 +19,6 @@
 #undef ssize_t
 #ifdef _WIN64
 typedef signed int64 ssize_t;
-#else
 typedef int ssize_t;
 #endif /* _WIN64 */
 #endif /* _SSIZE_T_DEFINED */
