@@ -949,7 +949,7 @@ Sam3Connection *sam3StreamConnect(Sam3Session *ses, const char *destkey) {
       strcpyerr(ses, "IO_ERROR_SK");
       goto error;
     }
-    char silent[6];
+    char *silent = "False";
     checkIsSilent(ses, silent);
     if (sam3tcpPrintf(conn->fd,
                       "STREAM CONNECT ID=%s DESTINATION=%s SILENT=%s\n",
