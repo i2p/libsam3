@@ -2,7 +2,7 @@ CFLAGS := -Wall -g -O2 -std=gnu99
 
 all: clean examples
 
-examples: example lookup dclient dserver sclient sserver
+examples: example lookup dclient dserver sclient sserver ssserver ssclient
 
 example:
 	${CC} ${CFLAGS} samtest.c -o samtest ../libsam3/libsam3.o
@@ -21,6 +21,13 @@ sclient:
 
 sserver:
 	${CC} ${CFLAGS} streams.c -o streams ../libsam3/libsam3.o
+
+ssclient:
+	${CC} ${CFLAGS} streamcs.c -o streamcs ../libsam3/libsam3.o
+
+ssserver:
+	${CC} ${CFLAGS} streamss.c -o streamss ../libsam3/libsam3.o
+
 
 clean:
 	rm -f samtest lookup dgramc dgrams streamc streams streams.key test-lookup
