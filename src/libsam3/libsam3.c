@@ -959,7 +959,7 @@ Sam3Connection *sam3StreamConnect(Sam3Session *ses, const char *destkey) {
       strcpyerr(ses, "IO_ERROR");
       goto error;
     }
-    if (!ses->silent){
+    if (!ses->silent) {
       if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
         const char *v = sam3FindField(rep, "RESULT");
         //
@@ -1018,7 +1018,7 @@ Sam3Connection *sam3StreamAccept(Sam3Session *ses) {
       strcpyerr(ses, "IO_ERROR_RP");
       goto error;
     }
-    if (!ses->silent){
+    if (!ses->silent) {
       if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
         const char *v = sam3FindField(rep, "RESULT");
         //
