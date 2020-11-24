@@ -959,7 +959,7 @@ Sam3Connection *sam3StreamConnect(Sam3Session *ses, const char *destkey) {
       strcpyerr(ses, "IO_ERROR");
       goto error;
     }
-    if (!ses->silent){
+    if (!ses->silent) {
       if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
         const char *v = sam3FindField(rep, "RESULT");
         //
@@ -1018,7 +1018,7 @@ Sam3Connection *sam3StreamAccept(Sam3Session *ses) {
       strcpyerr(ses, "IO_ERROR_RP");
       goto error;
     }
-    if (!ses->silent){
+    if (!ses->silent) {
       if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
         const char *v = sam3FindField(rep, "RESULT");
         //
@@ -1096,13 +1096,11 @@ int sam3StreamForward(Sam3Session *ses, const char *hostname, int port) {
       strcpyerr(ses, "IO_ERROR_RP");
       goto error;
     }
-    if (!ses->silent){
-      if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
-        const char *v = sam3FindField(rep, "RESULT");
-        //
-        strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR_RES"));
-        goto error;
-      }
+    if (!sam3IsGoodReply(rep, "STREAM", "STATUS", "RESULT", "OK")) {
+      const char *v = sam3FindField(rep, "RESULT");
+      //
+      strcpyerr(ses, (v != NULL && v[0] ? v : "I2P_ERROR_RES"));
+      goto error;
     }
     sam3FreeFieldList(rep);
     strcpyerr(ses, NULL);
