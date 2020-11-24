@@ -205,7 +205,7 @@ extern int sam3CloseSession(Sam3Session *ses);
  * characters for use with sam3tcpPrintf() checkIsSilent
  */
 
-void checkIsSilent(Sam3Session *ses, char *str);
+const char *checkIsSilent(Sam3Session *ses);
 
 /*
  * Check to make sure that the destination in use is of a valid length, returns
