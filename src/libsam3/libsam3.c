@@ -716,20 +716,23 @@ int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port,
       return -1;
     }
     //
-    if (sam3tcpPrintf(fd, "DEST GENERATE %s\n", sigtypes[sigType]) >= 0) {
-      if ((rep = sam3ReadReply(fd)) != NULL &&
-          sam3IsGoodReply(rep, "DEST", "REPLY", NULL, NULL)) {
-        const char *pub = sam3FindField(rep, "PUB"),
-                   *priv = sam3FindField(rep, "PRIV");
-        //
-        if (pub != NULL && sam3CheckValidKeyLength(pub) && priv != NULL &&
-            strlen(priv) >= SAM3_PRIVKEY_MIN_SIZE) {
-          strcpy(ses->pubkey, pub);
-          strcpy(ses->privkey, priv);
-          res = 0;
-        }
-      }
+    if (sam3tcpPrintf(fd, "DEST GENERATE\n") < 0) {
+      strcpyerr(ses, "DEST_ERROR");
     }
+
+    rep = sam3ReadReply(fd);
+    // sam3DumpFieldList(rep);
+    if (!sam3IsGoodReply(rep, "DEST", "REPLY", "PUB", NULL)) {
+      strcpyerr(ses, "PUBKEY_ERROR");
+    }
+    if (!sam3IsGoodReply(rep, "DEST", "REPLY", "PRIV", NULL)) {
+      strcpyerr(ses, "PRIVKEY_ERROR");
+    }
+    const char *pub = sam3FindField(rep, "PUB");
+    strcpy(ses->pubkey, pub);
+    const char *priv = sam3FindField(rep, "PRIV");
+    strcpy(ses->privkey, priv);
+    res = 0;
     //
     sam3FreeFieldList(rep);
     sam3tcpDisconnect(fd);

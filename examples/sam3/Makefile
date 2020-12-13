@@ -28,9 +28,14 @@ ssclient:
 ssserver:
 	${CC} ${CFLAGS} streamss.c -o streamss ../libsam3/libsam3.o
 
+keysp:
+	${CXX} ${CFLAGS} keys.cc -o keysp ../libsam3/libsam3.o
+
+keys:
+	${CC} ${CFLAGS} keys.c -o keys ../libsam3/libsam3.o
 
 clean:
-	rm -f samtest lookup dgramc dgrams streamc streams streams.key test-lookup
+	rm -f samtest lookup dgramc dgrams streamc streams streams.key test-lookup keys keysp
 
 debug:
 	sed -i 's|// libsam3_debug = 1;|libsam3_debug = 1;|g' *.c
