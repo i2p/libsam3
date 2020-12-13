@@ -1,3 +1,12 @@
 *.o
 libsam3-tests
 *.a
+examples/libsam3
+examples/sam3/dgrams
+examples/sam3/dgramc
+examples/sam3/keys
+examples/sam3/keysp
+examples/sam3namelookup
+examples/sam3/streams
+examples/sam3/streamc
+
