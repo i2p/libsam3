@@ -32,6 +32,9 @@ libsam3-tests: ${TEST_OBJS} ${LIB}
 clean:
 	rm -f libsam3-tests ${LIB} ${OBJS} examples/sam3/samtest
 
+boost:
+	gcc -Werror -Wall -Wextra -Wno-unused-parameter -std=c++11 -g -lboost_system -lboost_thread -lpthread examples/boost/boost.cpp -o boost
+
 %.o: %.c Makefile
 	${CC} ${CFLAGS} $(LDFLAGS) -c $< -o $@
 

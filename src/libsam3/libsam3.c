@@ -716,7 +716,7 @@ int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port,
       return -1;
     }
     //
-    if (sam3tcpPrintf(fd, "DEST GENERATE\n") < 0) {
+    if (sam3tcpPrintf(fd, "DEST GENERATE %s\n", sigtypes[(int)sigType]) < 0) {
       strcpyerr(ses, "DEST_ERROR");
     }
 
