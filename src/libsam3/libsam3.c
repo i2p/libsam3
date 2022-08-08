@@ -896,6 +896,10 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
       goto error;
     }
     // save our keys
+    if (strlen(v) > SAM3_PRIVKEY_MAX_SIZE) {
+        fprintf(stderr, "ERROR, Unexpected key size (%li)!\n", strlen(v));
+        goto error;
+    }
     strcpy(ses->privkey, v);
     sam3FreeFieldList(rep);
     // get public key

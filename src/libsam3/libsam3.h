@@ -39,6 +39,7 @@ extern int libsam3_debug;
 #define SAM3_PUBKEY_SIZE (516)
 #define SAM3_CERT_SIZE (100)
 #define SAM3_PRIVKEY_MIN_SIZE (884)
+#define SAM3_PRIVKEY_MAX_SIZE (1024)
 
 ////////////////////////////////////////////////////////////////////////////////
 /* returns fd or -1 */
@@ -136,7 +137,7 @@ typedef struct Sam3Session {
   Sam3SessionType type;
   Sam3SigType sigType;
   int fd;
-  char privkey[SAM3_PRIVKEY_MIN_SIZE + 1]; // destination private key (asciiz)
+  char privkey[SAM3_PRIVKEY_MAX_SIZE + 1]; // destination private key (asciiz)
   char pubkey[SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE +
               1];   // destination public key (asciiz)
   char channel[66]; // name of this sam session (asciiz)
