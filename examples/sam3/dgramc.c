@@ -25,8 +25,9 @@
 int main(int argc, char *argv[]) {
   Sam3Session ses;
   char buf[1024];
-  char destkey[517] = {0}; // 516 chars + \0
+  char destkey[SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE + 1] = {0};
   int sz;
+  size_t sizeread;
   //
   libsam3_debug = 1;
   //
@@ -34,17 +35,27 @@ int main(int argc, char *argv[]) {
     FILE *fl = fopen(KEYFILE, "rb");
     //
     if (fl != NULL) {
-      if (fread(destkey, 516, 1, fl) == 1) {
+      fprintf(stderr, "Reading key file...\n");
+      sizeread = fread(destkey, sizeof(char), sizeof(destkey), fl);
+      fprintf(stderr, "Read %li bytes\n", sizeread);
+      if (ferror(fl) != 0) {
+        fprintf(stderr, "I/O Error\n");
+        return 1;
+      }
+      // Insure that the bytes read safely fits into destkey
+      if (sizeread == sizeof(destkey)) {
+        fprintf(stderr, "Error, key file is to large (> %li)\n", sizeread);
         fclose(fl);
-        goto ok;
+        return 1;
       }
       fclose(fl);
+      goto ok;
     }
     printf("usage: dgramc PUBKEY\n");
     return 1;
   } else {
-    if (strlen(argv[1]) != 516) {
-      fprintf(stderr, "FATAL: invalid key length!\n");
+    if (strlen(argv[1]) > (SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE)) {
+      fprintf(stderr, "FATAL: invalid key length (%li)!\n", strlen(argv[1]));
       return 1;
     }
     strcpy(destkey, argv[1]);

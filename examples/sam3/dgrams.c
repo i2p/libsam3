@@ -19,7 +19,9 @@
 
 int main(int argc, char *argv[]) {
   Sam3Session ses;
-  char privkey[1024], pubkey[1024], buf[33 * 1024];
+  char privkey[SAM3_PRIVKEY_MAX_SIZE + 1],
+       pubkey[SAM3_PUBKEY_SIZE + SAM3_CERT_SIZE + 1],
+       buf[33 * 1024];
 
   /** quit command */
   const char *quitstr = "quit";
@@ -58,7 +60,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   /** print destination to stdout */
-  printf("PUB KEY\n=======\n%s\n=======\n", ses.pubkey);
+  printf("PUB KEY (length = %li)\n=======\n%s\n=======\n",
+          strlen(ses.pubkey), ses.pubkey);
   if ((fl = fopen(KEYFILE, "wb")) != NULL) {
     /** write public key to keyfile */
     fwrite(pubkey, strlen(pubkey), 1, fl);
@@ -74,7 +77,8 @@ int main(int argc, char *argv[]) {
     int sz, isquit;
     printf("waiting for datagram...\n");
     /** blocks until we get a UDP packet */
-    if ((sz = sam3DatagramReceive(&ses, datagramBuf, datagramMaxLen) < 0)) {
+    sz = sam3DatagramReceive(&ses, datagramBuf, datagramMaxLen);
+    if (sz < 0) {
       fprintf(stderr, "ERROR: %s\n", ses.error);
       goto error;
     }

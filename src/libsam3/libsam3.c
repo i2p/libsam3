@@ -1142,11 +1142,12 @@ int sam3DatagramSend(Sam3Session *ses, const char *destkey, const void *buf,
       strcpyerr(ses, "INVALID_DATA");
       return -1;
     }
-    dbufsz = bufsize + 4 + SAM3_PUBKEY_SIZE + 1 + strlen(ses->channel) + 1;
+    dbufsz = bufsize + 4 + strlen(destkey) + 1 + strlen(ses->channel) + 1;
     if ((dbuf = malloc(dbufsz)) == NULL) {
       strcpyerr(ses, "OUT_OF_MEMORY");
       return -1;
     }
+    memset(dbuf, 0, dbufsz);
     sprintf(dbuf, "3.0 %s %s\n", ses->channel, destkey);
     memcpy(dbuf + strlen(dbuf), buf, bufsize);
     res = sam3udpSendToIP(ses->ip, ses->port, dbuf, dbufsz);
