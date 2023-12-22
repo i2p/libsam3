@@ -48,13 +48,14 @@
 #endif
 #endif
 
-#ifdef __unix__
+#if defined(__unix__) || defined(__APPLE__)
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/sysinfo.h>
 #include <sys/types.h>
+#include <sys/ioctl.h>
 #endif
 ////////////////////////////////////////////////////////////////////////////////
 int libsam3_debug = 0;
