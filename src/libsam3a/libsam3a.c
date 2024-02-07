@@ -665,6 +665,7 @@ static uint32_t genSeed(void) {
   volatile uint32_t seed = 1;
   uint32_t res;
 #ifndef WIN32
+  #ifndef __APPLE__
   struct sysinfo sy;
   pid_t pid = getpid();
   //
@@ -672,6 +673,10 @@ static uint32_t genSeed(void) {
   res = hashint((uint32_t)pid) ^ hashint((uint32_t)time(NULL)) ^
         hashint((uint32_t)sy.sharedram) ^ hashint((uint32_t)sy.bufferram) ^
         hashint((uint32_t)sy.uptime);
+  #else
+  res = hashint((uint32_t)GetCurrentProcessId()) ^
+        hashint((uint32_t)GetTickCount());
+  #endif
 #else
   res = hashint((uint32_t)GetCurrentProcessId()) ^
         hashint((uint32_t)GetTickCount());
