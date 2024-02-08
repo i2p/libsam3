@@ -631,19 +631,27 @@ static inline uint32_t hashint(uint32_t a) {
 }
 
 static uint32_t genSeed(void) {
+  volatile uint32_t seed = 1;
   uint32_t res;
 #ifndef WIN32
-  struct sysinfo sy;
-  pid_t pid = getpid();
-  //
-  sysinfo(&sy);
-  res = hashint((uint32_t)pid) ^ hashint((uint32_t)time(NULL)) ^
-        hashint((uint32_t)sy.sharedram) ^ hashint((uint32_t)sy.bufferram) ^
-        hashint((uint32_t)sy.uptime);
+  #ifndef __APPLE__
+    struct sysinfo sy;
+    pid_t pid = getpid();
+    //
+    sysinfo(&sy);
+    res = hashint((uint32_t)pid) ^ hashint((uint32_t)time(NULL)) ^
+          hashint((uint32_t)sy.sharedram) ^ hashint((uint32_t)sy.bufferram) ^
+          hashint((uint32_t)sy.uptime);
+  #else
+    res = hashint((uint32_t)getpid()) ^
+          hashint((uint32_t)TickCount());
+  #endif
 #else
   res = hashint((uint32_t)GetCurrentProcessId()) ^
         hashint((uint32_t)GetTickCount());
 #endif
+  res += __sync_fetch_and_add(&seed, 1);
+  //
   return hashint(res);
 }
 
