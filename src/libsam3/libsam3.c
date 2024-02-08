@@ -57,6 +57,11 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #endif
+
+#if defined(__unix__) && !defined(__APPLE__)
+#include <sys/sysinfo.h>
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 int libsam3_debug = 0;
 
