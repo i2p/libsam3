@@ -53,7 +53,6 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include <sys/sysinfo.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #endif
