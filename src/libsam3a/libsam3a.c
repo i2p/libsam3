@@ -63,6 +63,8 @@
 
 #if defined(__APPLE__)
 #include <mach/mach_time.h>
+
+#include <mach/mach_time.h>
 uint32_t TickCount() {
   uint64_t mat = mach_absolute_time();
   uint32_t mul = 0x80d9594e;
