@@ -77,11 +77,11 @@ int libsam3a_debug = 0;
 #define DEFAULT_UDP_PORT (7655)
 
 ////////////////////////////////////////////////////////////////////////////////
-uint64_t sam3atimeval2ms(const struct timeval *tv) {
+extern uint64_t sam3atimeval2ms(const struct timeval *tv) {
   return ((uint64_t)tv->tv_sec) * 1000 + ((uint64_t)tv->tv_usec) / 1000;
 }
 
-void sam3ams2timeval(struct timeval *tv, uint64_t ms) {
+extern void sam3ams2timeval(struct timeval *tv, uint64_t ms) {
   tv->tv_sec = ms / 1000;
   tv->tv_usec = (ms % 1000) * 1000;
 }
