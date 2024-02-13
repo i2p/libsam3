@@ -52,7 +52,7 @@
 #include <sys/sysinfo.h>
 #endif
 
-#if defined(__unix__)
+#if defined(__unix__) || defined(__APPLE__)
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
