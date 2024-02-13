@@ -59,6 +59,9 @@
 
 #if defined(__unix__) && !defined(__APPLE__)
 #include <sys/sysinfo.h>
+int solSocket() {
+  return SOL_SOCKET;
+}
 #endif
 
 #if defined(__APPLE__)
@@ -67,6 +70,9 @@ uint32_t TickCount() {
   uint64_t mat = mach_absolute_time();
   uint32_t mul = 0x80d9594e;
   return ((((0xffffffff & mat) * mul) >> 32) + (mat >> 32) * mul) >> 23;
+}
+int solSocket() {
+  return SOL_TCP;
 }
 #endif
 
@@ -92,7 +98,7 @@ int sam3tcpSetTimeoutSend(int fd, int timeoutms) {
     struct timeval tv;
     //
     ms2timeval(&tv, timeoutms);
-    return (setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0 ? -1
+    return (setsockopt(fd, solSocket(), SO_SNDTIMEO, &tv, sizeof(tv)) < 0 ? -1
                                                                          : 0);
   }
   return -1;
@@ -103,7 +109,7 @@ int sam3tcpSetTimeoutReceive(int fd, int timeoutms) {
     struct timeval tv;
     //
     ms2timeval(&tv, timeoutms);
-    return (setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0 ? -1
+    return (setsockopt(fd, solSocket(), SO_RCVTIMEO, &tv, sizeof(tv)) < 0 ? -1
                                                                          : 0);
   }
   return -1;
@@ -144,7 +150,7 @@ int sam3tcpConnectIP(uint32_t ip, int port) {
     }
   }
   //
-  setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val));
+  setsockopt(fd, solSocket(), SO_KEEPALIVE, &val, sizeof(val));
   //
   if (connect(fd, (struct sockaddr *)&addr, sizeof(struct sockaddr_in)) < 0) {
     if (libsam3_debug)
