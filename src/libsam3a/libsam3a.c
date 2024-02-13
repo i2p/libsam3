@@ -68,7 +68,7 @@
 #define SOCK_CLOEXEC 0
 #endif
 #ifndef SOCK_NONBLOCK
-#include <fnctl.h>
+#include <fcntl.h>
 #define SOCK_NONBLOCK O_NONBLOCK
 #endif
 uint32_t TickCount() {
