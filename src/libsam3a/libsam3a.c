@@ -64,6 +64,13 @@
 #if defined(__APPLE__)
 #include <mach/mach_time.h>
 #include <netinet/tcp.h>
+#ifndef SOCK_CLOEXEC
+#define SOCK_CLOEXEC 0
+#endif
+#ifndef SOCK_NONBLOCK
+#include <fnctl.h>
+#define SOCK_NONBLOCK O_NONBLOCK
+#endif
 uint32_t TickCount() {
   uint64_t mat = mach_absolute_time();
   uint32_t mul = 0x80d9594e;
