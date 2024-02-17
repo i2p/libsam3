@@ -71,6 +71,9 @@
 #include <fcntl.h>
 #define SOCK_NONBLOCK O_NONBLOCK
 #endif
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
 uint32_t TickCount() {
   uint64_t mat = mach_absolute_time();
   uint32_t mul = 0x80d9594e;
