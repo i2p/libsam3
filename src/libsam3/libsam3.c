@@ -62,6 +62,9 @@
 #endif
 
 #if defined(__APPLE__)
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
 #include <mach/mach_time.h>
 uint32_t TickCount() {
   uint64_t mat = mach_absolute_time();
