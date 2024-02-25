@@ -31,6 +31,7 @@
 #include <time.h>
 
 #include <sys/types.h>
+#include <sys/time.h>
 
 #ifdef __MINGW32__
 //#include <winsock.h>

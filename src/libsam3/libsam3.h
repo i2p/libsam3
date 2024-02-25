@@ -28,6 +28,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 #ifndef _SSIZE_T_DEFINED
 #define _SSIZE_T_DEFINED

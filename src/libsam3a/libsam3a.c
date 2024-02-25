@@ -48,15 +48,39 @@
 #endif
 #endif
 
-#ifdef __unix__
+#if defined(__unix__) && !defined(__APPLE__)
+#include <sys/sysinfo.h>
+#endif
+
+#if defined(__unix__) || defined(__APPLE__)
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <sys/sysinfo.h>
 #include <sys/types.h>
 #endif
+
+#if defined(__APPLE__)
+#include <mach/mach_time.h>
+#include <netinet/tcp.h>
+#ifndef SOCK_CLOEXEC
+#define SOCK_CLOEXEC 0
+#endif
+#ifndef SOCK_NONBLOCK
+#include <fcntl.h>
+#define SOCK_NONBLOCK O_NONBLOCK
+#endif
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+uint32_t TickCount() {
+  uint64_t mat = mach_absolute_time();
+  uint32_t mul = 0x80d9594e;
+  return ((((0xffffffff & mat) * mul) >> 32) + (mat >> 32) * mul) >> 23;
+}
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 int libsam3a_debug = 0;
 
@@ -64,11 +88,11 @@ int libsam3a_debug = 0;
 #define DEFAULT_UDP_PORT (7655)
 
 ////////////////////////////////////////////////////////////////////////////////
-uint64_t sam3atimeval2ms(const struct timeval *tv) {
+extern uint64_t sam3atimeval2ms(const struct timeval *tv) {
   return ((uint64_t)tv->tv_sec) * 1000 + ((uint64_t)tv->tv_usec) / 1000;
 }
 
-void sam3ams2timeval(struct timeval *tv, uint64_t ms) {
+extern void sam3ams2timeval(struct timeval *tv, uint64_t ms) {
   tv->tv_sec = ms / 1000;
   tv->tv_usec = (ms % 1000) * 1000;
 }
@@ -665,13 +689,18 @@ static uint32_t genSeed(void) {
   volatile uint32_t seed = 1;
   uint32_t res;
 #ifndef WIN32
-  struct sysinfo sy;
-  pid_t pid = getpid();
-  //
-  sysinfo(&sy);
-  res = hashint((uint32_t)pid) ^ hashint((uint32_t)time(NULL)) ^
-        hashint((uint32_t)sy.sharedram) ^ hashint((uint32_t)sy.bufferram) ^
-        hashint((uint32_t)sy.uptime);
+  #ifndef __APPLE__
+    struct sysinfo sy;
+    pid_t pid = getpid();
+    //
+    sysinfo(&sy);
+    res = hashint((uint32_t)pid) ^ hashint((uint32_t)time(NULL)) ^
+          hashint((uint32_t)sy.sharedram) ^ hashint((uint32_t)sy.bufferram) ^
+          hashint((uint32_t)sy.uptime);
+  #else
+    res = hashint((uint32_t)getpid()) ^
+          hashint((uint32_t)TickCount());
+  #endif
 #else
   res = hashint((uint32_t)GetCurrentProcessId()) ^
         hashint((uint32_t)GetTickCount());
