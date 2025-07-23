@@ -284,10 +284,10 @@ __attribute__((format(printf, 2, 3))) int sam3tcpPrintf(int fd, const char *fmt,
     else
       size *= 2;
     if (p == buf) {
-      if ((p = malloc(size + 4)) == NULL)
+      if ((p = (char*)malloc(size + 4)) == NULL)
         return -1;
     } else {
-      if ((np = realloc(p, size + 4)) == NULL) {
+      if ((np = (char*)realloc(p, size + 4)) == NULL) {
         free(p);
         return -1;
       }
@@ -443,7 +443,7 @@ const char *sam3FindField(const SAMFieldList *list, const char *field) {
 
 static char *xstrdup(const char *s, int len) {
   if (len >= 0) {
-    char *res = malloc(len + 1);
+    char *res = (char*)malloc(len + 1);
     //
     if (res != NULL) {
       if (len > 0)
@@ -497,7 +497,7 @@ SAMFieldList *sam3ParseReply(const char *rep) {
   if ((e1 = xstrtokend(e)) == NULL)
     return NULL;
   //
-  if ((first = last = c = malloc(sizeof(SAMFieldList))) == NULL)
+  if ((first = last = c = (SAMFieldList*)malloc(sizeof(SAMFieldList))) == NULL)
     return NULL;
   c->next = NULL;
   c->name = c->value = NULL;
@@ -518,14 +518,14 @@ SAMFieldList *sam3ParseReply(const char *rep) {
     if (libsam3_debug)
       fprintf(stderr, "<%s>\n", p);
     //
-    if ((c = malloc(sizeof(SAMFieldList))) == NULL)
+    if ((c = (SAMFieldList*)malloc(sizeof(SAMFieldList))) == NULL)
       return NULL;
     c->next = NULL;
     c->name = c->value = NULL;
     last->next = c;
     last = c;
     //
-    if ((e1 = memchr(p, '=', e - p)) != NULL) {
+    if ((e1 = (char*)memchr(p, '=', e - p)) != NULL) {
       // key=value
       if ((c->name = xstrdup(p, e1 - p)) == NULL)
         goto error;
@@ -989,7 +989,7 @@ Sam3Connection *sam3StreamConnect(Sam3Session *ses, const char *destkey) {
       strcpyerr(ses, "INVALID_KEY");
       return NULL;
     }
-    if ((conn = calloc(1, sizeof(Sam3Connection))) == NULL) {
+    if ((conn = (Sam3Connection*)calloc(1, sizeof(Sam3Connection))) == NULL) {
       strcpyerr(ses, "NO_MEMORY");
       return NULL;
     }
@@ -1050,7 +1050,7 @@ Sam3Connection *sam3StreamAccept(Sam3Session *ses) {
       strcpyerr(ses, "INVALID_SESSION");
       return NULL;
     }
-    if ((conn = calloc(1, sizeof(Sam3Connection))) == NULL) {
+    if ((conn = (Sam3Connection*)calloc(1, sizeof(Sam3Connection))) == NULL) {
       strcpyerr(ses, "NO_MEMORY");
       return NULL;
     }
@@ -1184,7 +1184,7 @@ int sam3DatagramSend(Sam3Session *ses, const char *destkey, const void *buf,
       return -1;
     }
     dbufsz = bufsize + 4 + strlen(destkey) + 1 + strlen(ses->channel) + 1;
-    if ((dbuf = malloc(dbufsz)) == NULL) {
+    if ((dbuf = (char*)malloc(dbufsz)) == NULL) {
       strcpyerr(ses, "OUT_OF_MEMORY");
       return -1;
     }
