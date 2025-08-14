@@ -1012,7 +1012,7 @@ static void aioSesNameMeChecker(Sam3ASession *ses) {
     return;
   }
   if (v == NULL || strlen(v) >= sizeof(ses->pubkey)) {
-    strcpyerrc(ses, "PUBKEY_SIZE_ERROR");
+    strcpyerrs(ses, "PUBKEY_SIZE_ERROR");
     return;
   }
   snprintf(ses->pubkey, sizeof(ses->pubkey), "%s", v);
@@ -1044,7 +1044,7 @@ static void aioSesCreateChecker(Sam3ASession *ses) {
   // ok
   // fprintf(stderr, "\nPK: %s\n", v);
   if (v == NULL || strlen(v) >= sizeof(ses->privkey)) {
-    strcpyerrc(ses, "PRIVKEY_SIZE_ERROR");
+    strcpyerrs(ses, "PRIVKEY_SIZE_ERROR");
     return;
   }
   snprintf(ses->privkey, sizeof(ses->privkey), "%s", v);
@@ -1107,7 +1107,7 @@ int sam3aCreateSessionEx(Sam3ASession *ses, const Sam3ASessionCallbacks *cb,
     if (privkey == NULL)
       privkey = "TRANSIENT";
     if (privkey == NULL || strlen(privkey) >= sizeof(ses->privkey)) {
-      strcpyerr(ses, "PRIVKEY_SIZE_ERROR");
+      strcpyerrs(ses, "PRIVKEY_SIZE_ERROR");
       return -1;
     }
     snprintf(ses->privkey, sizeof(ses->privkey), "%s", privkey);
@@ -1188,13 +1188,13 @@ static void aioSesKeyGenChecker(Sam3ASession *ses) {
     if (pub != NULL && strlen(pub) == SAM3A_PUBKEY_SIZE && priv != NULL &&
         strlen(priv) == SAM3A_PRIVKEY_SIZE) {
       if (pub == NULL || strlen(pub) >= sizeof(ses->pubkey)) {
-        strcpyerrc(ses, "PUBKEY_SIZE_ERROR");
+        strcpyerrs(ses, "PUBKEY_SIZE_ERROR");
         sam3aFreeFieldList(rep);
         return;
       }
       snprintf(ses->pubkey, sizeof(ses->pubkey), "%s", pub);
       if (priv == NULL || strlen(priv) >= sizeof(ses->privkey)) {
-        strcpyerrc(ses, "PRIVKEY_SIZE_ERROR");
+        strcpyerrs(ses, "PRIVKEY_SIZE_ERROR");
         sam3aFreeFieldList(rep);
         return;
       }
@@ -1269,7 +1269,7 @@ static void aioSesNameResChecker(Sam3ASession *ses) {
     if (strcmp(rs, "OK") == 0) {
       if (pub != NULL && strlen(pub) == SAM3A_PUBKEY_SIZE) {
         if (pub == NULL || strlen(pub) >= sizeof(ses->destkey)) {
-          strcpyerrc(ses, "DESTKEY_SIZE_ERROR");
+          strcpyerrs(ses, "DESTKEY_SIZE_ERROR");
         } else {
           snprintf(ses->destkey, sizeof(ses->destkey), "%s", pub);
         }
