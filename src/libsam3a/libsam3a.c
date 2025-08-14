@@ -158,17 +158,29 @@ static int sam3aBytesAvail(int fd) {
 }
 
 static uint32_t sam3aResolveHost(const char *hostname) {
-  struct hostent *host;
+  struct addrinfo hints, *result = NULL;
+  int status;
+  uint32_t addr_ip = 0;
   //
   if (hostname == NULL || !hostname[0])
     return 0;
-  if ((host = gethostbyname(hostname)) == NULL || host->h_name == NULL ||
-      !host->h_addr_list[0][0]) {
+  //
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  //
+  status = getaddrinfo(hostname, NULL, &hints, &result);
+  if (status != 0 || result == NULL) {
     if (libsam3a_debug)
-      fprintf(stderr, "ERROR: can't resolve '%s'\n", hostname);
+      fprintf(stderr, "ERROR: can't resolve '%s': %s\n", hostname, gai_strerror(status));
+    if (result) freeaddrinfo(result);
     return 0;
   }
-  return ((struct in_addr *)host->h_addr_list[0])->s_addr;
+  //
+  struct sockaddr_in *saddr = (struct sockaddr_in *)result->ai_addr;
+  addr_ip = saddr->sin_addr.s_addr;
+  freeaddrinfo(result);
+  return addr_ip;
 }
 
 static int sam3aConnect(uint32_t ip, int port, int *complete) {
@@ -431,21 +443,31 @@ int sam3audpSendToIP (uint32_t ip, int port, const void *buf, int bufSize) {
 
 
 int sam3audpSendTo (const char *hostname, int port, const void *buf, int
-bufSize, uint32_t *ip) { struct hostent *host = NULL;
+bufSize, uint32_t *ip) { 
+  struct addrinfo hints, *result = NULL;
+  int status;
   //
   if (buf == NULL || bufSize < 1) return -1;
   if (hostname == NULL || !hostname[0]) hostname = "localhost";
   if (port < 1 || port > 65535) port = 7655;
   //
-  host = gethostbyname(hostname);
-  if (host == NULL || host->h_name == NULL || !host->h_name[0]) {
-    if (libsam3a_debug) fprintf(stderr, "ERROR: can't resolve '%s'\n",
-hostname); return -1;
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_DGRAM;
+  //
+  status = getaddrinfo(hostname, NULL, &hints, &result);
+  if (status != 0 || result == NULL) {
+    if (libsam3a_debug) fprintf(stderr, "ERROR: can't resolve '%s': %s\n",
+hostname, gai_strerror(status)); 
+    if (result) freeaddrinfo(result);
+    return -1;
   }
   //
-  if (ip != NULL) *ip = ((struct in_addr *)host->h_addr)->s_addr;
-  return sam3audpSendToIP(((struct in_addr *)host->h_addr)->s_addr, port, buf,
-bufSize);
+  struct sockaddr_in *saddr = (struct sockaddr_in *)result->ai_addr;
+  uint32_t addr_ip = saddr->sin_addr.s_addr;
+  if (ip != NULL) *ip = addr_ip;
+  freeaddrinfo(result);
+  return sam3audpSendToIP(addr_ip, port, buf, bufSize);
 }
 */
 
@@ -989,7 +1011,11 @@ static void aioSesNameMeChecker(Sam3ASession *ses) {
     sam3aFreeFieldList(rep);
     return;
   }
-  strcpy(ses->pubkey, v);
+  if (v == NULL || strlen(v) >= sizeof(ses->pubkey)) {
+    strcpyerrc(ses, "PUBKEY_SIZE_ERROR");
+    return;
+  }
+  snprintf(ses->pubkey, sizeof(ses->pubkey), "%s", v);
   sam3aFreeFieldList(rep);
   //
   ses->cbAIOProcessorR = ses->cbAIOProcessorW = NULL;
@@ -1017,7 +1043,11 @@ static void aioSesCreateChecker(Sam3ASession *ses) {
   }
   // ok
   // fprintf(stderr, "\nPK: %s\n", v);
-  strcpy(ses->privkey, v);
+  if (v == NULL || strlen(v) >= sizeof(ses->privkey)) {
+    strcpyerrc(ses, "PRIVKEY_SIZE_ERROR");
+    return;
+  }
+  snprintf(ses->privkey, sizeof(ses->privkey), "%s", v);
   sam3aFreeFieldList(rep);
   // get our public key
   if (aioSesSendCmdWaitReply(ses, aioSesNameMeChecker, "%s\n",
@@ -1076,7 +1106,11 @@ int sam3aCreateSessionEx(Sam3ASession *ses, const Sam3ASessionCallbacks *cb,
       goto error;
     if (privkey == NULL)
       privkey = "TRANSIENT";
-    strcpy(ses->privkey, privkey);
+    if (privkey == NULL || strlen(privkey) >= sizeof(ses->privkey)) {
+      strcpyerr(ses, "PRIVKEY_SIZE_ERROR");
+      return -1;
+    }
+    snprintf(ses->privkey, sizeof(ses->privkey), "%s", privkey);
     if (params != NULL && (ses->params = strdup(params)) == NULL)
       goto error;
     ses->timeoutms = timeoutms;
@@ -1153,8 +1187,18 @@ static void aioSesKeyGenChecker(Sam3ASession *ses) {
     //
     if (pub != NULL && strlen(pub) == SAM3A_PUBKEY_SIZE && priv != NULL &&
         strlen(priv) == SAM3A_PRIVKEY_SIZE) {
-      strcpy(ses->pubkey, pub);
-      strcpy(ses->privkey, priv);
+      if (pub == NULL || strlen(pub) >= sizeof(ses->pubkey)) {
+        strcpyerrc(ses, "PUBKEY_SIZE_ERROR");
+        sam3aFreeFieldList(rep);
+        return;
+      }
+      snprintf(ses->pubkey, sizeof(ses->pubkey), "%s", pub);
+      if (priv == NULL || strlen(priv) >= sizeof(ses->privkey)) {
+        strcpyerrc(ses, "PRIVKEY_SIZE_ERROR");
+        sam3aFreeFieldList(rep);
+        return;
+      }
+      snprintf(ses->privkey, sizeof(ses->privkey), "%s", priv);
       sam3aFreeFieldList(rep);
       if (ses->cb.cbCreated != NULL)
         ses->cb.cbCreated(ses);
@@ -1224,7 +1268,11 @@ static void aioSesNameResChecker(Sam3ASession *ses) {
     //
     if (strcmp(rs, "OK") == 0) {
       if (pub != NULL && strlen(pub) == SAM3A_PUBKEY_SIZE) {
-        strcpy(ses->destkey, pub);
+        if (pub == NULL || strlen(pub) >= sizeof(ses->destkey)) {
+          strcpyerrc(ses, "DESTKEY_SIZE_ERROR");
+        } else {
+          snprintf(ses->destkey, sizeof(ses->destkey), "%s", pub);
+        }
         sam3aFreeFieldList(rep);
         if (ses->cb.cbCreated != NULL)
           ses->cb.cbCreated(ses);
@@ -1559,7 +1607,10 @@ Sam3AConnection *sam3aStreamConnectEx(Sam3ASession *ses,
       return NULL;
     if (cb != NULL)
       conn->cb = *cb;
-    strcpy(conn->destkey, destkey);
+    if (destkey == NULL || strlen(destkey) >= sizeof(conn->destkey)) {
+      return NULL;
+    }
+    snprintf(conn->destkey, sizeof(conn->destkey), "%s", destkey);
     conn->timeoutms = timeoutms;
     //
     conn->aio.udata = aioConConnectHandshacked;
@@ -1591,7 +1642,10 @@ static void aioConnAcceptCheckerA(Sam3AConnection *conn) {
     return;
   }
   sam3aFreeFieldList(rep);
-  strcpy(conn->destkey, conn->aio.data);
+  if (conn->aio.data == NULL || strlen((char*)conn->aio.data) >= sizeof(conn->destkey)) {
+    return;
+  }
+  snprintf(conn->destkey, sizeof(conn->destkey), "%s", (char*)conn->aio.data);
   conn->callDisconnectCB = 1;
   conn->cbAIOProcessorR = aioConnDataReader;
   conn->cbAIOProcessorW = aioConnDataWriter;
