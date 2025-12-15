@@ -28,6 +28,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -977,6 +978,12 @@ Sam3Connection *sam3StreamConnect(Sam3Session *ses, const char *destkey) {
     SAMFieldList *rep;
     Sam3Connection *conn;
     //
+    for (size_t i = 0; destkey[i] != 0; i++){
+        if (destkey[i] == '\n'){
+            strcpyerr(ses, "INVALID_KEY_SYMBOLS");
+            return NULL;
+        }
+    }
     if (ses->type != SAM3_SESSION_STREAM) {
       strcpyerr(ses, "INVALID_SESSION_TYPE");
       return NULL;
