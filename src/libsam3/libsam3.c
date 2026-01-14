@@ -390,7 +390,8 @@ int sam3udpSendToIP(uint32_t ip, int port, const void *buf, size_t bufSize) {
 
 int sam3udpSendTo(const char *hostname, int port, const void *buf,
                   size_t bufSize, uint32_t *ip) {
-  struct hostent *host = NULL;
+  struct addrinfo hints, *result = NULL;
+  int status;
   // TODO: ipv6
   if (buf == NULL || bufSize < 1)
     return -1;
@@ -399,17 +400,24 @@ int sam3udpSendTo(const char *hostname, int port, const void *buf,
   if (port < 1 || port > 65535)
     port = 7655;
   //
-  host = gethostbyname(hostname);
-  if (host == NULL || host->h_name == NULL || !host->h_name[0]) {
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_DGRAM;
+  //
+  status = getaddrinfo(hostname, NULL, &hints, &result);
+  if (status != 0 || result == NULL) {
     if (libsam3_debug)
-      fprintf(stderr, "ERROR: can't resolve '%s'\n", hostname);
+      fprintf(stderr, "ERROR: can't resolve '%s': %s\n", hostname, gai_strerror(status));
+    if (result) freeaddrinfo(result);
     return -1;
   }
   //
+  struct sockaddr_in *saddr = (struct sockaddr_in *)result->ai_addr;
+  uint32_t addr_ip = saddr->sin_addr.s_addr;
   if (ip != NULL)
-    *ip = ((struct in_addr *)host->h_addr)->s_addr;
-  return sam3udpSendToIP(((struct in_addr *)host->h_addr)->s_addr, port, buf,
-                         bufSize);
+    *ip = addr_ip;
+  freeaddrinfo(result);
+  return sam3udpSendToIP(addr_ip, port, buf, bufSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -771,9 +779,21 @@ int sam3GenerateKeys(Sam3Session *ses, const char *hostname, int port,
       strcpyerr(ses, "PRIVKEY_ERROR");
     }
     const char *pub = sam3FindField(rep, "PUB");
-    strcpy(ses->pubkey, pub);
+    if (pub == NULL || strlen(pub) >= sizeof(ses->pubkey)) {
+      strcpyerr(ses, "PUBKEY_SIZE_ERROR");
+      sam3FreeFieldList(rep);
+      sam3tcpDisconnect(fd);
+      return -1;
+    }
+    snprintf(ses->pubkey, sizeof(ses->pubkey), "%s", pub);
     const char *priv = sam3FindField(rep, "PRIV");
-    strcpy(ses->privkey, priv);
+    if (priv == NULL || strlen(priv) >= sizeof(ses->privkey)) {
+      strcpyerr(ses, "PRIVKEY_SIZE_ERROR");
+      sam3FreeFieldList(rep);
+      sam3tcpDisconnect(fd);
+      return -1;
+    }
+    snprintf(ses->privkey, sizeof(ses->privkey), "%s", priv);
     res = 0;
     //
     sam3FreeFieldList(rep);
@@ -804,9 +824,13 @@ int sam3NameLookup(Sam3Session *ses, const char *hostname, int port,
         //
         if (strcmp(rs, "OK") == 0) {
           if (pub != NULL && sam3CheckValidKeyLength(pub)) {
-            strcpy(ses->destkey, pub);
-            strcpyerr(ses, NULL);
-            res = 0;
+            if (strlen(pub) >= sizeof(ses->destkey)) {
+              strcpyerr(ses, "DESTKEY_SIZE_ERROR");
+            } else {
+              snprintf(ses->destkey, sizeof(ses->destkey), "%s", pub);
+              strcpyerr(ses, NULL);
+              res = 0;
+            }
           }
         } else if (rs[0]) {
           strcpyerr(ses, rs);
@@ -942,7 +966,11 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
         fprintf(stderr, "ERROR, Unexpected key size (%li)!\n", strlen(v));
         goto error;
     }
-    strcpy(ses->privkey, v);
+    if (v == NULL || strlen(v) >= sizeof(ses->privkey)) {
+      strcpyerr(ses, "PRIVKEY_SIZE_ERROR");
+      return -1;
+    }
+    snprintf(ses->privkey, sizeof(ses->privkey), "%s", v);
     sam3FreeFieldList(rep);
     // get public key
     if (sam3tcpPrintf(ses->fd, "NAMING LOOKUP NAME=ME\n") < 0)
@@ -961,7 +989,11 @@ int sam3CreateSession(Sam3Session *ses, const char *hostname, int port,
       sam3FreeFieldList(rep);
       goto error;
     }
-    strcpy(ses->pubkey, v);
+    if (v == NULL || strlen(v) >= sizeof(ses->pubkey)) {
+      strcpyerr(ses, "PUBKEY_SIZE_ERROR");
+      return -1;
+    }
+    snprintf(ses->pubkey, sizeof(ses->pubkey), "%s", v);
     sam3FreeFieldList(rep);
     //
     if (libsam3_debug)
@@ -1029,7 +1061,10 @@ Sam3Connection *sam3StreamConnect(Sam3Session *ses, const char *destkey) {
     }
     sam3FreeFieldList(rep);
     if (conn != NULL) {
-      strcpy(conn->destkey, destkey);
+      if (destkey == NULL || strlen(destkey) >= sizeof(conn->destkey)) {
+        return NULL;
+      }
+      snprintf(conn->destkey, sizeof(conn->destkey), "%s", destkey);
       conn->ses = ses;
       conn->next = ses->connlist;
       ses->connlist = conn;
@@ -1097,7 +1132,10 @@ Sam3Connection *sam3StreamAccept(Sam3Session *ses) {
       goto error;
     }
     sam3FreeFieldList(rep);
-    strcpy(conn->destkey, repstr);
+    if (strlen(repstr) >= sizeof(conn->destkey)) {
+      return NULL;
+    }
+    snprintf(conn->destkey, sizeof(conn->destkey), "%s", repstr);
     conn->ses = ses;
     conn->next = ses->connlist;
     ses->connlist = conn;
